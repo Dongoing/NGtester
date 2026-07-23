@@ -1,0 +1,32 @@
+OAI p09 Handover Notify — retest 2026-07-22 (replaces prior capture)
+====================================================================
+Victim: AMF-UE-NGAP-ID=1, RAN-UE-NGAP-ID=1 (imsi-001010000000001)
+Attack: handover-notify --amf-ue-id 1 --ran-ue-id 99
+Command: CFG_CORE=oai ./capture_attack.sh oai_p09_handover_notify ...
+
+Timeline (UE clock, UERANSIM):
+  14:33:32  Initial Registration OK, CM-CONNECTED, PDU/TUN up
+  14:34:23  RRC Release received -> CM-IDLE
+            (AMF: Received Handover Notify ... Send UE Release Command to source gNB)
+  14:34:34  Service Request (IDLE-UPLINK-DATA-PENDING) -> brief CM-CONNECTED
+            Service Reject cause MESSAGE_NOT_COMPATIBLE_WITH_PROTOCOL_STATE
+            (AMF: new nas_context amf_ue_ngap_id=2 in 5GMM-DEREGISTERED;
+                  transition not valid for SERVICE_REQUEST_RECEIVED -> Reject)
+
+AMF pcap NGAP procedureCodes: 21,11,41,15,4
+  attacker NG Setup (21) + HandoverNotify (11)
+  Release to victim gNB (41) + Complete (41)
+  later InitialContextSetup-related (15) + DownlinkNAS (4) on victim path (Service Reject)
+
+vs Open5GS HO-window p09:
+  Open5GS: CM-IDLE then ~38s later successful CM-CONNECTED recovery
+  OAI:     CM-IDLE then ~11s Service Request -> REJECTED (state machine desync)
+           This is the concrete meaning of "AMF state messy on Service Request".
+
+Artifacts in this folder:
+  amf_ngap_nas_sbi.pcap / smf_sbi_pfcp.pcap / legit_gnb_n2_n3.pcap
+  ue_full.log / gnb_full.log / amf_after_tail.log
+  ue_state_transitions.txt / amf_p09_and_recovery.txt / gnb_release_and_reestab.txt
+  amf_pcap_ngap.txt / gnb_pcap_ngap.txt
+  ping_before.txt / ping_after.txt / ping_after_60s.txt
+  timeline.txt / meta_before.txt / SUMMARY.txt

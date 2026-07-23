@@ -1,0 +1,18 @@
+﻿Deploying component: 'ueransim-gnb'
+gNB IP: 172.30.200.0, AMF: 172.30.0.10, PLMN: 001/01, TAC: 1, SST: 1
+[?2004h]0;root@7c5f9f946ec6: /UERANSIM/buildroot@7c5f9f946ec6:/UERANSIM/build# UERANSIM v3.2.6
+[2026-07-22 14:33:29.461] [sctp] [[32minfo[m] Trying to establish SCTP connection... (172.30.0.10:38412)
+[2026-07-22 14:33:29.462] [sctp] [[32minfo[m] SCTP connection established (172.30.0.10:38412)
+[2026-07-22 14:33:29.462] [sctp] [[36mdebug[m] SCTP association setup ascId[473]
+[2026-07-22 14:33:29.462] [ngap] [[36mdebug[m] Sending NG Setup Request
+[2026-07-22 14:33:29.464] [ngap] [[36mdebug[m] NG Setup Response received
+[2026-07-22 14:33:29.464] [ngap] [[32minfo[m] NG Setup procedure is successful
+[2026-07-22 14:33:29.660] [rrc] [[36mdebug[m] UE[1] new signal detected
+[2026-07-22 14:33:32.161] [rrc] [[32minfo[m] RRC Setup for UE[1]
+[2026-07-22 14:33:32.162] [ngap] [[36mdebug[m] Initial NAS message received from UE[1]
+[2026-07-22 14:33:32.203] [ngap] [[36mdebug[m] Initial Context Setup Request received
+[2026-07-22 14:33:32.415] [ngap] [[32minfo[m] PDU session resource(s) setup for UE[1] count[1]
+[2026-07-22 14:34:23.029] [ngap] [[36mdebug[m] UE Context Release Command received
+[2026-07-22 14:34:23.029] [rrc] [[32minfo[m] Releasing RRC connection for UE[1]
+[2026-07-22 14:34:34.014] [rrc] [[32minfo[m] RRC Setup for UE[1]
+[2026-07-22 14:34:34.014] [ngap] [[36mdebug[m] Initial NAS message received from UE[1]

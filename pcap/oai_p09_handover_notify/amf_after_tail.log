@@ -1,0 +1,400 @@
+﻿            UEContextReleaseComplete-IEs ::= {
+                id: 10
+                criticality: 1 (ignore)
+                value: 1
+            }
+            UEContextReleaseComplete-IEs ::= {
+                id: 85
+                criticality: 1 (ignore)
+                value: 1
+            }
+            UEContextReleaseComplete-IEs ::= {
+                id: 121
+                criticality: 1 (ignore)
+                value: UserLocationInformationNR ::= {
+                    nR-CGI: NR-CGI ::= {
+                        pLMNIdentity: 00 F1 10
+                        nRCellIdentity: 00 00 00 01 00 (4 bits unused)
+                    }
+                    tAI: TAI ::= {
+                        pLMNIdentity: 00 F1 10
+                        tAC: 00 00 01
+                    }
+                    timeStamp: EE 0B 53 6F
+                }
+            }
+        }
+    }
+}
+[2026-07-22 16:34:23.030] [ngap] [debug] Sending ITTI UE Context Release Complete to TASK_AMF_N2
+[2026-07-22 16:34:23.030] [ngap] [debug] Received TAC 0x1
+[2026-07-22 16:34:23.030] [amf_n2] [info] Received UE Context Release Complete message, handling
+[2026-07-22 16:34:23.030] [amf_n2] [debug] Handle UE Context Release Complete ...
+[2026-07-22 16:34:23.030] [amf_n2] [debug] UE Context Release Complete ran_ue_ngap_id (1) amf_ue_ngap_id (1)
+[2026-07-22 16:34:23.030] [amf_app] [debug] Key for UE context search: 1
+[2026-07-22 16:34:23.030] [amf_n2] [debug] Release cause 2 No UE NGAP context with gnb_assoc_id 474, Release gnb_assoc_id 474
+[2026-07-22 16:34:23.030] [amf_n2] [debug] Removed UE NGAP <ran,gnb> alias with ran_ue_ngap_id 1, gnb_id 1
+[2026-07-22 16:34:23.030] [ngap] [debug] Free NGAP Message PDU
+[2026-07-22 16:34:30.769] [amf_app] [info] 
+   |------------------------------------------------------------------------------------------------------------------------------------------------------------|
+   |----------------------------------------------------------------------gNBs' Information---------------------------------------------------------------------|
+   |  Index |               Status               |              Global Id             |              gNB Name              |                PLMN                |
+   |    1   |              Connected             |                0x01                |         UERANSIM-gnb-1-1-1         |               001,01               |
+   |    2   |              Connected             |               0x1234               |             ngap-tester            |               001,01               |
+   |------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+   |-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+   |---------------------------------------------------------------------UEs' Information----------------------------------------------------------------------|
+   |  Index |     5GMM State     |                IMSI/SUPI               |        GUTI        |   RAN UE NGAP ID   |   AMF UE NGAP ID   |        PLMN        |       Cell Id      |
+   |    1   |   5GMM-REGISTERED  |             001010000000001            |00101010041313578875|        0x01        |        0x01        |       001,01       |      000000010     |
+   |-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+[2026-07-22 16:34:30.851] [amf_sbi] [info] Receive Update NF Instance Request, handling ...
+[2026-07-22 16:34:30.851] [amf_sbi] [debug] Send NF Update to NRF
+[2026-07-22 16:34:30.851] [amf_sbi] [info] Send HTTP message to http://oai-nrf:8080/nnrf-nfm/v1/nf-instances/3db4729c-f35f-449c-bdfe-e51577cba3ae
+[2026-07-22 16:34:30.851] [amf_sbi] [info] HTTP message Body: [{"op":"replace","path":"/nfStatus","value":"REGISTERED"}]
+[2026-07-22 16:34:30.851] [amf_sbi] [debug] Send a simple HTTP request
+[2026-07-22 16:34:30.852] [amf_sbi] [info] Get response with HTTP code (204)
+[2026-07-22 16:34:30.852] [amf_sbi] [info] Could not get JSON content from the response
+[2026-07-22 16:34:30.852] [amf_app] [debug] Received SBI_UPDATE_NF_INSTANCE_RESPONSE
+[2026-07-22 16:34:30.852] [amf_app] [debug] Handle NF Update response
+[2026-07-22 16:34:30.852] [amf_app] [debug] Set a timer to the next Heart-beat (10)
+[2026-07-22 16:34:34.015] [sctp] [info] [Assoc_id 474, Socket 4] Received a message (length 106) from port 40169, on stream 2, PPID 60
+[2026-07-22 16:34:34.015] [ngap] [debug] Handling SCTP payload from SCTP Server on assoc_id (474), stream_id (2), instreams (10), outstreams (10)
+[2026-07-22 16:34:34.015] [ngap] [debug] Decoded NGAP message, procedure code 15, present 1
+InitiatingMessage ::= {
+    procedureCode: 15
+    criticality: 1 (ignore)
+    value: InitialUEMessage ::= {
+        protocolIEs: ProtocolIE-Container ::= {
+            InitialUEMessage-IEs ::= {
+                id: 85
+                criticality: 0 (reject)
+                value: 2
+            }
+            InitialUEMessage-IEs ::= {
+                id: 38
+                criticality: 0 (reject)
+                value: 
+                    7E 01 01 C6 99 5F 03 7E 00 4C 12 00 07 F4 00 41 
+                    BA E8 56 D6 71 00 15 7E 00 4C 12 00 07 F4 00 41 
+                    BA E8 56 D6 40 02 02 00 50 02 02 00
+            }
+            InitialUEMessage-IEs ::= {
+                id: 121
+                criticality: 0 (reject)
+                value: UserLocationInformationNR ::= {
+                    nR-CGI: NR-CGI ::= {
+                        pLMNIdentity: 00 F1 10
+                        nRCellIdentity: 00 00 00 01 00 (4 bits unused)
+                    }
+                    tAI: TAI ::= {
+                        pLMNIdentity: 00 F1 10
+                        tAC: 00 00 01
+                    }
+                    timeStamp: EE 0B 53 7A
+                }
+            }
+            InitialUEMessage-IEs ::= {
+                id: 90
+                criticality: 1 (ignore)
+                value: 4 (mo-Data)
+            }
+            InitialUEMessage-IEs ::= {
+                id: 26
+                criticality: 0 (reject)
+                value: FiveG-S-TMSI ::= {
+                    aMFSetID: 00 40 (6 bits unused)
+                    aMFPointer: 04 (2 bits unused)
+                    fiveG-TMSI: 00 E8 56 D6
+                }
+            }
+            InitialUEMessage-IEs ::= {
+                id: 112
+                criticality: 1 (ignore)
+                value: 0 (requested)
+            }
+        }
+    }
+}
+[2026-07-22 16:34:34.015] [ngap] [debug] [gNB Assoc ID 474] Sending ITTI Initial UE Message to TASK_AMF_N2
+InitiatingMessage ::= {
+    procedureCode: 15
+    criticality: 1 (ignore)
+    value: InitialUEMessage ::= {
+        protocolIEs: ProtocolIE-Container ::= {
+            InitialUEMessage-IEs ::= {
+                id: 85
+                criticality: 0 (reject)
+                value: 2
+            }
+            InitialUEMessage-IEs ::= {
+                id: 38
+                criticality: 0 (reject)
+                value: 
+                    7E 01 01 C6 99 5F 03 7E 00 4C 12 00 07 F4 00 41 
+                    BA E8 56 D6 71 00 15 7E 00 4C 12 00 07 F4 00 41 
+                    BA E8 56 D6 40 02 02 00 50 02 02 00
+            }
+            InitialUEMessage-IEs ::= {
+                id: 121
+                criticality: 0 (reject)
+                value: UserLocationInformationNR ::= {
+                    nR-CGI: NR-CGI ::= {
+                        pLMNIdentity: 00 F1 10
+                        nRCellIdentity: 00 00 00 01 00 (4 bits unused)
+                    }
+                    tAI: TAI ::= {
+                        pLMNIdentity: 00 F1 10
+                        tAC: 00 00 01
+                    }
+                    timeStamp: EE 0B 53 7A
+                }
+            }
+            InitialUEMessage-IEs ::= {
+                id: 90
+                criticality: 1 (ignore)
+                value: 4 (mo-Data)
+            }
+            InitialUEMessage-IEs ::= {
+                id: 26
+                criticality: 0 (reject)
+                value: FiveG-S-TMSI ::= {
+                    aMFSetID: 00 40 (6 bits unused)
+                    aMFPointer: 04 (2 bits unused)
+                    fiveG-TMSI: 00 E8 56 D6
+                }
+            }
+            InitialUEMessage-IEs ::= {
+                id: 112
+                criticality: 1 (ignore)
+                value: 0 (requested)
+            }
+        }
+    }
+}
+[2026-07-22 16:34:34.015] [ngap] [debug] Received RanUeNgapId 2 
+[2026-07-22 16:34:34.015] [ngap] [debug] Received TAC 0x1
+[2026-07-22 16:34:34.015] [common] [debug] [ngap]AMFSetID
+00 40 
+[2026-07-22 16:34:34.015] [amf_n2] [info] Received Initial UE Message, handling
+[2026-07-22 16:34:34.015] [amf_n2] [debug] Handle Initial UE Message...
+[2026-07-22 16:34:34.015] [amf_n2] [debug] User Location Info NR (MCC 001, MNC 01, TAC 1) is included in the supported TA List
+[2026-07-22 16:34:34.015] [amf_n2] [warning] No UE NGAP context with ran_ue_ngap_id 2, gnb_id 1
+[2026-07-22 16:34:34.015] [amf_n2] [debug] Create a new UE NGAP context with ran_ue_ngap_id 2
+[2026-07-22 16:34:34.015] [amf_n2] [debug] 5g_s_tmsi present: 00410015226582
+[2026-07-22 16:34:34.015] [amf_n2] [debug] Store InitialUEMessage for Reroute NAS (if necessary)
+InitiatingMessage ::= {
+    procedureCode: 15
+    criticality: 1 (ignore)
+    value: InitialUEMessage ::= {
+        protocolIEs: ProtocolIE-Container ::= {
+            InitialUEMessage-IEs ::= {
+                id: 85
+                criticality: 0 (reject)
+                value: 2
+            }
+            InitialUEMessage-IEs ::= {
+                id: 38
+                criticality: 0 (reject)
+                value: 
+                    7E 01 01 C6 99 5F 03 7E 00 4C 12 00 07 F4 00 41 
+                    BA E8 56 D6 71 00 15 7E 00 4C 12 00 07 F4 00 41 
+                    BA E8 56 D6 40 02 02 00 50 02 02 00
+            }
+            InitialUEMessage-IEs ::= {
+                id: 121
+                criticality: 0 (reject)
+                value: UserLocationInformationNR ::= {
+                    nR-CGI: NR-CGI ::= {
+                        pLMNIdentity: 00 F1 10
+                        nRCellIdentity: 00 00 00 01 00 (4 bits unused)
+                    }
+                    tAI: TAI ::= {
+                        pLMNIdentity: 00 F1 10
+                        tAC: 00 00 01
+                    }
+                    timeStamp: EE 0B 53 7A
+                }
+            }
+            InitialUEMessage-IEs ::= {
+                id: 90
+                criticality: 1 (ignore)
+                value: 4 (mo-Data)
+            }
+            InitialUEMessage-IEs ::= {
+                id: 26
+                criticality: 0 (reject)
+                value: FiveG-S-TMSI ::= {
+                    aMFSetID: 00 40 (6 bits unused)
+                    aMFPointer: 04 (2 bits unused)
+                    fiveG-TMSI: 00 E8 56 D6
+                }
+            }
+            InitialUEMessage-IEs ::= {
+                id: 112
+                criticality: 1 (ignore)
+                value: 0 (requested)
+            }
+        }
+    }
+}
+[2026-07-22 16:34:34.015] [ngap] [debug] Encoded size (106)
+[2026-07-22 16:34:34.015] [amf_n2] [debug] Encoded InitialUEMessage size 106
+[2026-07-22 16:34:34.015] [common] [debug] [ngap]InitialUEMessage
+00 0f 40 66 00 00 06 00 55 00 02 00 02 00 26 00 2d 2c 7e 01 01 c6 99 5f 03 7e 00 4c 12 00 07 f4 00 41 ba e8 56 d6 71 00 15 7e 00 4c 12 00 07 f4 00 41 ba e8 56 d6 40 02 02 00 50 02 02 00 00 79 00 13 50 00 f1 10 00 00 00 01 00 00 f1 10 00 00 01 ee 0b 53 7a 00 5a 40 01 20 00 1a 00 07 00 10 40 00 e8 56 d6 00 70 40 01 00 
+[2026-07-22 16:34:34.015] [ngap] [debug] Free NGAP Message PDU
+[2026-07-22 16:34:34.015] [amf_app] [debug] Received NAS_SIG_ESTAB_REQ
+[2026-07-22 16:34:34.015] [amf_app] [debug] Receiving GUTI 001010100410015226582
+[2026-07-22 16:34:34.015] [amf_n1] [info] Received UL_NAS_DATA_IND
+[2026-07-22 16:34:34.015] [amf_n1] [debug] Serving network name 5G:mnc001.mcc001.3gppnetwork.org
+[2026-07-22 16:34:34.015] [amf_n1] [debug] GUTI valid 001010100410015226582
+[2026-07-22 16:34:34.015] [amf_n1] [error] No existing nas_context with GUTI 001010100410015226582
+[2026-07-22 16:34:34.015] [common] [debug] [amf_n1]Received Uplink NAS Message
+7e 01 01 c6 99 5f 03 7e 00 4c 12 00 07 f4 00 41 ba e8 56 d6 71 00 15 7e 00 4c 12 00 07 f4 00 41 ba e8 56 d6 40 02 02 00 50 02 02 00 
+[2026-07-22 16:34:34.015] [amf_n1] [debug] Received integrity protected NAS message
+[2026-07-22 16:34:34.015] [amf_n1] [info] Integrity protected message: ulCount(3)
+[2026-07-22 16:34:34.015] [common] [debug] [amf_n1]Decoded Plain Message
+7e 00 4c 12 00 07 f4 00 41 ba e8 56 d6 71 00 15 7e 00 4c 12 00 07 f4 00 41 ba e8 56 d6 40 02 02 00 50 02 02 00 
+[2026-07-22 16:34:34.015] [amf_n1] [debug] Received NAS Signalling Establishment request...
+[2026-07-22 16:34:34.015] [amf_n1] [debug] No existing nas_context with amf_ue_ngap_id 2 --> Create a new one
+[2026-07-22 16:34:34.015] [amf_n1] [debug] NAS message type 0x4c
+[2026-07-22 16:34:34.015] [amf_n1] [debug] Received Service Request message (InitialUeMessage), handling...
+[2026-07-22 16:34:34.015] [amf_n1] [warning] 5GMM state transition: not valid, state=5GMM-DEREGISTERED, event=SERVICE_REQUEST_RECEIVED, reason=No transition: state=1 event=SERVICE_REQUEST_RECEIVED
+[2026-07-22 16:34:34.015] [amf_n1] [debug] Send Service Reject with cause 101 to UE
+[2026-07-22 16:34:34.015] [nas_mm] [debug] Size of Service Reject message 4
+[2026-07-22 16:34:34.015] [nas] [debug] Encoding Service Reject message
+[2026-07-22 16:34:34.015] [nas] [debug] Encoding NasMmPlainHeader
+[2026-07-22 16:34:34.015] [nas] [debug] Encoded NasMmPlainHeader (len 3 octets)
+[2026-07-22 16:34:34.015] [nas] [debug] Encoding 5GMM Cause
+[2026-07-22 16:34:34.015] [nas] [debug] Encoded 5GMM Cause, len (1)
+[2026-07-22 16:34:34.015] [nas] [debug] IE PDU Session Status is not available
+[2026-07-22 16:34:34.015] [nas] [debug] IE GPRS Timer 2 is not available
+[2026-07-22 16:34:34.015] [nas] [debug] IE EAP Message is not available
+[2026-07-22 16:34:34.015] [nas] [debug] IE GPRS Timer 3 is not available
+[2026-07-22 16:34:34.015] [nas] [debug] Encoded Service Reject message len (4)
+[2026-07-22 16:34:34.015] [common] [debug] [amf_n1]Service-Reject message buffer
+7e 00 4d 65 
+[2026-07-22 16:34:34.015] [amf_n1] [warning] 5GMM state transition rejected: state=5GMM-DEREGISTERED, event=SERVICE_REJECT_SENT, reasonNo transition: state=1 event=SERVICE_REJECT_SENT
+[2026-07-22 16:34:34.015] [amf_n2] [info] Received Downlink NAS Transport message, handling
+[2026-07-22 16:34:34.015] [amf_app] [info] 
+   |------------------------------------------------------------------------------------------------------------------------------------------------------------|
+   |----------------------------------------------------------------------gNBs' Information---------------------------------------------------------------------|
+   |  Index |               Status               |              Global Id             |              gNB Name              |                PLMN                |
+   |    1   |              Connected             |                0x01                |         UERANSIM-gnb-1-1-1         |               001,01               |
+   |    2   |              Connected             |               0x1234               |             ngap-tester            |               001,01               |
+   |------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+   |-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+   |---------------------------------------------------------------------UEs' Information----------------------------------------------------------------------|
+   |  Index |     5GMM State     |                IMSI/SUPI               |        GUTI        |   RAN UE NGAP ID   |   AMF UE NGAP ID   |        PLMN        |       Cell Id      |
+   |    1   |   5GMM-REGISTERED  |             001010000000001            |00101010041313578875|        0x01        |        0x01        |       001,01       |      000000010     |
+   |-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+[2026-07-22 16:34:34.015] [amf_n2] [debug] Handle DL NAS Transport ...
+[2026-07-22 16:34:34.015] [amf_app] [debug] Key for UE context search: 2
+InitiatingMessage ::= {
+    procedureCode: 4
+    criticality: 1 (ignore)
+    value: DownlinkNASTransport ::= {
+        protocolIEs: ProtocolIE-Container ::= {
+            DownlinkNASTransport-IEs ::= {
+                id: 10
+                criticality: 0 (reject)
+                value: 2
+            }
+            DownlinkNASTransport-IEs ::= {
+                id: 85
+                criticality: 0 (reject)
+                value: 2
+            }
+            DownlinkNASTransport-IEs ::= {
+                id: 38
+                criticality: 0 (reject)
+                value: 7E 00 4D 65
+            }
+        }
+    }
+}
+[2026-07-22 16:34:34.015] [ngap] [debug] Encoded size (28)
+[2026-07-22 16:34:34.015] [sctp] [debug] [Socket 4, Assoc ID 474] Sending buffer 0x757970004040 of 28 bytes on stream 2 with PPID 60
+[2026-07-22 16:34:34.015] [sctp] [debug] Successfully sent 28 bytes on stream 2
+[2026-07-22 16:34:34.015] [ngap] [debug] Free NGAP Message PDU
+[2026-07-22 16:34:40.851] [amf_sbi] [info] Receive Update NF Instance Request, handling ...
+[2026-07-22 16:34:40.851] [amf_sbi] [debug] Send NF Update to NRF
+[2026-07-22 16:34:40.851] [amf_sbi] [info] Send HTTP message to http://oai-nrf:8080/nnrf-nfm/v1/nf-instances/3db4729c-f35f-449c-bdfe-e51577cba3ae
+[2026-07-22 16:34:40.851] [amf_sbi] [info] HTTP message Body: [{"op":"replace","path":"/nfStatus","value":"REGISTERED"}]
+[2026-07-22 16:34:40.851] [amf_sbi] [debug] Send a simple HTTP request
+[2026-07-22 16:34:40.853] [amf_sbi] [info] Get response with HTTP code (204)
+[2026-07-22 16:34:40.853] [amf_sbi] [info] Could not get JSON content from the response
+[2026-07-22 16:34:40.853] [amf_app] [debug] Received SBI_UPDATE_NF_INSTANCE_RESPONSE
+[2026-07-22 16:34:40.853] [amf_app] [debug] Handle NF Update response
+[2026-07-22 16:34:40.853] [amf_app] [debug] Set a timer to the next Heart-beat (10)
+[2026-07-22 16:34:50.770] [amf_app] [info] 
+   |------------------------------------------------------------------------------------------------------------------------------------------------------------|
+   |----------------------------------------------------------------------gNBs' Information---------------------------------------------------------------------|
+   |  Index |               Status               |              Global Id             |              gNB Name              |                PLMN                |
+   |    1   |              Connected             |                0x01                |         UERANSIM-gnb-1-1-1         |               001,01               |
+   |    2   |              Connected             |               0x1234               |             ngap-tester            |               001,01               |
+   |------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+   |-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+   |---------------------------------------------------------------------UEs' Information----------------------------------------------------------------------|
+   |  Index |     5GMM State     |                IMSI/SUPI               |        GUTI        |   RAN UE NGAP ID   |   AMF UE NGAP ID   |        PLMN        |       Cell Id      |
+   |    1   |   5GMM-REGISTERED  |             001010000000001            |00101010041313578875|        0x01        |        0x01        |       001,01       |      000000010     |
+   |-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+[2026-07-22 16:34:50.853] [amf_sbi] [info] Receive Update NF Instance Request, handling ...
+[2026-07-22 16:34:50.853] [amf_sbi] [debug] Send NF Update to NRF
+[2026-07-22 16:34:50.853] [amf_sbi] [info] Send HTTP message to http://oai-nrf:8080/nnrf-nfm/v1/nf-instances/3db4729c-f35f-449c-bdfe-e51577cba3ae
+[2026-07-22 16:34:50.853] [amf_sbi] [info] HTTP message Body: [{"op":"replace","path":"/nfStatus","value":"REGISTERED"}]
+[2026-07-22 16:34:50.853] [amf_sbi] [debug] Send a simple HTTP request
+[2026-07-22 16:34:50.856] [amf_sbi] [info] Get response with HTTP code (204)
+[2026-07-22 16:34:50.856] [amf_sbi] [info] Could not get JSON content from the response
+[2026-07-22 16:34:50.856] [amf_app] [debug] Received SBI_UPDATE_NF_INSTANCE_RESPONSE
+[2026-07-22 16:34:50.856] [amf_app] [debug] Handle NF Update response
+[2026-07-22 16:34:50.856] [amf_app] [debug] Set a timer to the next Heart-beat (10)
+[2026-07-22 16:35:00.856] [amf_sbi] [info] Receive Update NF Instance Request, handling ...
+[2026-07-22 16:35:00.856] [amf_sbi] [debug] Send NF Update to NRF
+[2026-07-22 16:35:00.856] [amf_sbi] [info] Send HTTP message to http://oai-nrf:8080/nnrf-nfm/v1/nf-instances/3db4729c-f35f-449c-bdfe-e51577cba3ae
+[2026-07-22 16:35:00.856] [amf_sbi] [info] HTTP message Body: [{"op":"replace","path":"/nfStatus","value":"REGISTERED"}]
+[2026-07-22 16:35:00.856] [amf_sbi] [debug] Send a simple HTTP request
+[2026-07-22 16:35:00.857] [amf_sbi] [info] Get response with HTTP code (204)
+[2026-07-22 16:35:00.857] [amf_sbi] [info] Could not get JSON content from the response
+[2026-07-22 16:35:00.857] [amf_app] [debug] Received SBI_UPDATE_NF_INSTANCE_RESPONSE
+[2026-07-22 16:35:00.857] [amf_app] [debug] Handle NF Update response
+[2026-07-22 16:35:00.857] [amf_app] [debug] Set a timer to the next Heart-beat (10)
+[2026-07-22 16:35:10.769] [amf_app] [info] 
+   |------------------------------------------------------------------------------------------------------------------------------------------------------------|
+   |----------------------------------------------------------------------gNBs' Information---------------------------------------------------------------------|
+   |  Index |               Status               |              Global Id             |              gNB Name              |                PLMN                |
+   |    1   |              Connected             |                0x01                |         UERANSIM-gnb-1-1-1         |               001,01               |
+   |    2   |              Connected             |               0x1234               |             ngap-tester            |               001,01               |
+   |------------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+   |-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+   |---------------------------------------------------------------------UEs' Information----------------------------------------------------------------------|
+   |  Index |     5GMM State     |                IMSI/SUPI               |        GUTI        |   RAN UE NGAP ID   |   AMF UE NGAP ID   |        PLMN        |       Cell Id      |
+   |    1   |   5GMM-REGISTERED  |             001010000000001            |00101010041313578875|        0x01        |        0x01        |       001,01       |      000000010     |
+   |-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+
+[2026-07-22 16:35:10.858] [amf_sbi] [info] Receive Update NF Instance Request, handling ...
+[2026-07-22 16:35:10.858] [amf_sbi] [debug] Send NF Update to NRF
+[2026-07-22 16:35:10.858] [amf_sbi] [info] Send HTTP message to http://oai-nrf:8080/nnrf-nfm/v1/nf-instances/3db4729c-f35f-449c-bdfe-e51577cba3ae
+[2026-07-22 16:35:10.858] [amf_sbi] [info] HTTP message Body: [{"op":"replace","path":"/nfStatus","value":"REGISTERED"}]
+[2026-07-22 16:35:10.858] [amf_sbi] [debug] Send a simple HTTP request
+[2026-07-22 16:35:10.859] [amf_sbi] [info] Get response with HTTP code (204)
+[2026-07-22 16:35:10.859] [amf_sbi] [info] Could not get JSON content from the response
+[2026-07-22 16:35:10.859] [amf_app] [debug] Received SBI_UPDATE_NF_INSTANCE_RESPONSE
+[2026-07-22 16:35:10.859] [amf_app] [debug] Handle NF Update response
+[2026-07-22 16:35:10.859] [amf_app] [debug] Set a timer to the next Heart-beat (10)
+[2026-07-22 16:35:20.860] [amf_sbi] [info] Receive Update NF Instance Request, handling ...
+[2026-07-22 16:35:20.860] [amf_sbi] [debug] Send NF Update to NRF
+[2026-07-22 16:35:20.860] [amf_sbi] [info] Send HTTP message to http://oai-nrf:8080/nnrf-nfm/v1/nf-instances/3db4729c-f35f-449c-bdfe-e51577cba3ae
+[2026-07-22 16:35:20.860] [amf_sbi] [info] HTTP message Body: [{"op":"replace","path":"/nfStatus","value":"REGISTERED"}]
+[2026-07-22 16:35:20.860] [amf_sbi] [debug] Send a simple HTTP request
+[2026-07-22 16:35:20.861] [amf_sbi] [info] Get response with HTTP code (204)
+[2026-07-22 16:35:20.861] [amf_sbi] [info] Could not get JSON content from the response
+[2026-07-22 16:35:20.861] [amf_app] [debug] Received SBI_UPDATE_NF_INSTANCE_RESPONSE
+[2026-07-22 16:35:20.862] [amf_app] [debug] Handle NF Update response
+[2026-07-22 16:35:20.862] [amf_app] [debug] Set a timer to the next Heart-beat (10)

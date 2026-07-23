@@ -1,0 +1,14 @@
+{
+  "_comment": "Live 5g-lab Open5GS core (net-5glab). Hardcoded lab values; move to .env later.",
+  "amf_addr": "172.30.0.10",
+  "amf_port": 38412,
+  "mcc": "001",
+  "mnc": "01",
+  "tac": 1,
+  "sst": 1,
+  "sd": "010203",
+  "gnb_id": 4660,
+  "gnb_id_len": 32,
+  "nci": 17,
+  "ran_node_name": "ngap-tester"
+}

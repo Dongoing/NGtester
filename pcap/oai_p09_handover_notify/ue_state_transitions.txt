@@ -1,0 +1,27 @@
+﻿
+[2026-07-22 14:33:32.161] [nas] [[32minfo[m] UE switches to state [MM-DEREGISTERED/NORMAL-SERVICE]
+[2026-07-22 14:33:32.161] [nas] [[36mdebug[m] Initial registration required due to [MM-DEREG-NORMAL-SERVICE]
+[2026-07-22 14:33:32.161] [nas] [[36mdebug[m] Sending Initial Registration
+[2026-07-22 14:33:32.161] [nas] [[32minfo[m] UE switches to state [CM-CONNECTED]
+[2026-07-22 14:33:32.204] [nas] [[36mdebug[m] Registration accept received
+[2026-07-22 14:33:32.204] [nas] [[32minfo[m] UE switches to state [MM-REGISTERED/NORMAL-SERVICE]
+[2026-07-22 14:33:32.204] [nas] [[36mdebug[m] Sending Registration Complete
+[2026-07-22 14:33:32.204] [nas] [[32minfo[m] Initial Registration is successful
+[2026-07-22 14:33:32.204] [nas] [[36mdebug[m] Sending PDU Session Establishment Request
+[2026-07-22 14:33:32.416] [nas] [[36mdebug[m] PDU Session Establishment Accept received
+[2026-07-22 14:33:32.416] [nas] [[32minfo[m] PDU Session establishment is successful PSI[1]
+[2026-07-22 14:33:32.426] [app] [[32minfo[m] Connection setup for PDU session[1] is successful, TUN interface[uesimtu
+n0, 10.53.0.2] is up.
+[2026-07-22 14:34:23.030] [rrc] [[36mdebug[m] RRC Release received
+[2026-07-22 14:34:23.030] [nas] [[32minfo[m] UE switches to state [CM-IDLE]
+[2026-07-22 14:34:34.013] [nas] [[36mdebug[m] Service request required due to [IDLE-UPLINK-DATA-PENDING]
+[2026-07-22 14:34:34.013] [nas] [[36mdebug[m] Sending Service Request due to [IDLE-UPLINK-DATA-PENDING]
+[2026-07-22 14:34:34.014] [nas] [[32minfo[m] UE switches to state [MM-SERVICE-REQUEST-INITIATED]
+[2026-07-22 14:34:34.014] [nas] [[32minfo[m] UE switches to state [CM-CONNECTED]
+[2026-07-22 14:34:34.016] [nas] [[33m[1mwarning[m] Not protected Service Reject message received
+[2026-07-22 14:34:34.016] [nas] [[31m[1merror[m] Service Reject received with cause [MESSAGE_NOT_COMPATIBLE_WITH_PRO
+TOCOL_STATE]
+[2026-07-22 14:34:34.016] [nas] [[36mdebug[m] Handling Service Reject abnormal case
+[2026-07-22 14:34:34.016] [nas] [[32minfo[m] UE switches to state [MM-REGISTERED/NORMAL-SERVICE]
+
+

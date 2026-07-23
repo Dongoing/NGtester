@@ -1,0 +1,7 @@
+﻿
+[2026-07-22 14:33:32.203] [ngap] [[36mdebug[m] Initial Context Setup Request received
+[2026-07-22 14:33:32.415] [ngap] [[32minfo[m] PDU session resource(s) setup for UE[1] count[1]
+[2026-07-22 14:34:23.029] [ngap] [[36mdebug[m] UE Context Release Command received
+[2026-07-22 14:34:23.029] [rrc] [[32minfo[m] Releasing RRC connection for UE[1]
+
+

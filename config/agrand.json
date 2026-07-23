@@ -1,0 +1,14 @@
+{
+  "_comment": "PLACEHOLDER for agrand core — fill amf_addr/amf_port and the network the menu container must join (see menu.sh). PLMN/slice default to the unified lab profile; adjust if agrand uses different values.",
+  "amf_addr": "REPLACE_ME",
+  "amf_port": 38412,
+  "mcc": "001",
+  "mnc": "01",
+  "tac": 1,
+  "sst": 1,
+  "sd": "010203",
+  "gnb_id": 4660,
+  "gnb_id_len": 32,
+  "nci": 17,
+  "ran_node_name": "ngap-tester"
+}

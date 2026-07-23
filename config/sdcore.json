@@ -1,0 +1,14 @@
+{
+  "_comment": "Live 5g-lab SD-Core (kind K8s). AMF N2 exposed at 172.20.0.2:38412 on the 'kind' docker network (NOT net-5glab). PLMN 001/01, TAC 1, sst=1/sd=010203. AMF-UE-NGAP-ID is a large random int (read it from AMF logs, not enumerable).",
+  "amf_addr": "172.20.0.2",
+  "amf_port": 38412,
+  "mcc": "001",
+  "mnc": "01",
+  "tac": 1,
+  "sst": 1,
+  "sd": "010203",
+  "gnb_id": 4660,
+  "gnb_id_len": 32,
+  "nci": 17,
+  "ran_node_name": "ngap-tester"
+}

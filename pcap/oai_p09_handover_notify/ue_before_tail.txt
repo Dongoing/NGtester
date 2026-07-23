@@ -1,0 +1,29 @@
+﻿Deploying component: 'ueransim-ue'
+UE IMSI: 001010000000001, gNB: 172.30.200.0, PLMN: 001/01, APN: internet
+UERANSIM v3.2.6
+[2026-07-22 14:33:29.660] [nas] [[32minfo[m] UE switches to state [MM-DEREGISTERED/PLMN-SEARCH]
+[?2004h]0;root@c7fb0463353e: /UERANSIM/buildroot@c7fb0463353e:/UERANSIM/build# [2026-07-22 14:33:29.661] [rrc] [[36mdebug[m] New signal detected for cell[1], total [1] cells in coverage
+[2026-07-22 14:33:29.661] [nas] [[32minfo[m] Selected plmn[001/01]
+[2026-07-22 14:33:32.161] [rrc] [[32minfo[m] Selected cell plmn[001/01] tac[1] category[SUITABLE]
+[2026-07-22 14:33:32.161] [nas] [[32minfo[m] UE switches to state [MM-DEREGISTERED/PS]
+[2026-07-22 14:33:32.161] [nas] [[32minfo[m] UE switches to state [MM-DEREGISTERED/NORMAL-SERVICE]
+[2026-07-22 14:33:32.161] [nas] [[36mdebug[m] Initial registration required due to [MM-DEREG-NORMAL-SERVICE]
+[2026-07-22 14:33:32.161] [nas] [[36mdebug[m] UAC access attempt is allowed for identity[0], category[MO_sig]
+[2026-07-22 14:33:32.161] [nas] [[36mdebug[m] Sending Initial Registration
+[2026-07-22 14:33:32.161] [nas] [[32minfo[m] UE switches to state [MM-REGISTER-INITIATED]
+[2026-07-22 14:33:32.161] [rrc] [[36mdebug[m] Sending RRC Setup Request
+[2026-07-22 14:33:32.161] [rrc] [[32minfo[m] RRC connection established
+[2026-07-22 14:33:32.161] [rrc] [[32minfo[m] UE switches to state [RRC-CONNECTED]
+[2026-07-22 14:33:32.161] [nas] [[32minfo[m] UE switches to state [CM-CONNECTED]
+[2026-07-22 14:33:32.180] [nas] [[36mdebug[m] Authentication Request received
+[2026-07-22 14:33:32.196] [nas] [[36mdebug[m] Security Mode Command received
+[2026-07-22 14:33:32.196] [nas] [[36mdebug[m] Selected integrity[2] ciphering[0]
+[2026-07-22 14:33:32.204] [nas] [[36mdebug[m] Registration accept received
+[2026-07-22 14:33:32.204] [nas] [[32minfo[m] UE switches to state [MM-REGISTERED/NORMAL-SERVICE]
+[2026-07-22 14:33:32.204] [nas] [[36mdebug[m] Sending Registration Complete
+[2026-07-22 14:33:32.204] [nas] [[32minfo[m] Initial Registration is successful
+[2026-07-22 14:33:32.204] [nas] [[36mdebug[m] Sending PDU Session Establishment Request
+[2026-07-22 14:33:32.204] [nas] [[36mdebug[m] UAC access attempt is allowed for identity[0], category[MO_sig]
+[2026-07-22 14:33:32.416] [nas] [[36mdebug[m] PDU Session Establishment Accept received
+[2026-07-22 14:33:32.416] [nas] [[32minfo[m] PDU Session establishment is successful PSI[1]
+[2026-07-22 14:33:32.426] [app] [[32minfo[m] Connection setup for PDU session[1] is successful, TUN interface[uesimtun0, 10.53.0.2] is up.

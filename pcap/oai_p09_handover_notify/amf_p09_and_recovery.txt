@@ -1,0 +1,62 @@
+﻿
+    criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+[2026-07-22 16:34:23.029] [amf_n2] [info] Received Handover Notify message, handling
+[2026-07-22 16:34:23.029] [amf_n2] [info] Handle Handover Notify ...
+[2026-07-22 16:34:23.029] [amf_n2] [debug] Handover Notify ran_ue_ngap_id (99) amf_ue_ngap_id (1)
+[2026-07-22 16:34:23.029] [amf_n2] [debug] Handover Notify, gNB info (gNB Name: ngap-tester, gNB ID 0x1234)
+[2026-07-22 16:34:23.029] [amf_n2] [info] Send UE Release Command to source gNB
+    criticality: 0 (reject)
+                criticality: 0 (reject)
+    criticality: 0 (reject)
+   |    1   |   5GMM-REGISTERED  |             001010000000001            |00101010041313578875|        0x01        |  
+      0x01        |       001,01       |      000000010     |
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+[2026-07-22 16:34:34.015] [ngap] [debug] [gNB Assoc ID 474] Sending ITTI Initial UE Message to TASK_AMF_N2
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+[2026-07-22 16:34:34.015] [amf_n2] [info] Received Initial UE Message, handling
+[2026-07-22 16:34:34.015] [amf_n2] [debug] Handle Initial UE Message...
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+[2026-07-22 16:34:34.015] [amf_n1] [debug] No existing nas_context with amf_ue_ngap_id 2 --> Create a new one
+[2026-07-22 16:34:34.015] [amf_n1] [debug] Received Service Request message (InitialUeMessage), handling...
+[2026-07-22 16:34:34.015] [amf_n1] [warning] 5GMM state transition: not valid, state=5GMM-DEREGISTERED, event=SERVICE_R
+EQUEST_RECEIVED, reason=No transition: state=1 event=SERVICE_REQUEST_RECEIVED
+[2026-07-22 16:34:34.015] [amf_n1] [debug] Send Service Reject with cause 101 to UE
+[2026-07-22 16:34:34.015] [nas_mm] [debug] Size of Service Reject message 4
+[2026-07-22 16:34:34.015] [nas] [debug] Encoding Service Reject message
+[2026-07-22 16:34:34.015] [nas] [debug] Encoded Service Reject message len (4)
+[2026-07-22 16:34:34.015] [common] [debug] [amf_n1]Service-Reject message buffer
+[2026-07-22 16:34:34.015] [amf_n1] [warning] 5GMM state transition rejected: state=5GMM-DEREGISTERED, event=SERVICE_REJ
+ECT_SENT, reasonNo transition: state=1 event=SERVICE_REJECT_SENT
+   |    1   |   5GMM-REGISTERED  |             001010000000001            |00101010041313578875|        0x01        |  
+      0x01        |       001,01       |      000000010     |
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+                criticality: 0 (reject)
+   |    1   |   5GMM-REGISTERED  |             001010000000001            |00101010041313578875|        0x01        |  
+      0x01        |       001,01       |      000000010     |
+   |    1   |   5GMM-REGISTERED  |             001010000000001            |00101010041313578875|        0x01        |  
+      0x01        |       001,01       |      000000010     |
+   |    1   |   5GMM-REGISTERED  |             001010000000001            |00101010041313578875|        0x01        |  
+      0x01        |       001,01       |      000000010     |
+   |    1   |   5GMM-REGISTERED  |             001010000000001            |00101010041313578875|        0x01        |  
+      0x01        |       001,01       |      000000010     |
+   |    1   |   5GMM-REGISTERED  |             001010000000001            |00101010041313578875|        0x01        |  
+      0x01        |       001,01       |      000000010     |
+
+

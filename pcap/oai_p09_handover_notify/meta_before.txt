@@ -1,0 +1,5 @@
+﻿amf_lines=1950
+ue_lines=29
+gnb_lines=14
+victim_amf_ue_ngap_id=1
+victim_ran_ue_ngap_id=1

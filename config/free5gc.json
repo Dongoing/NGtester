@@ -1,0 +1,14 @@
+{
+  "_comment": "Live 5g-lab free5GC core (net-5glab, unified profile). Same identifiers as Open5GS; free5GC AMF also at 172.30.0.10:38412, PLMN 001/01, TAC 1, sst=1/sd=010203.",
+  "amf_addr": "172.30.0.10",
+  "amf_port": 38412,
+  "mcc": "001",
+  "mnc": "01",
+  "tac": 1,
+  "sst": 1,
+  "sd": "010203",
+  "gnb_id": 4660,
+  "gnb_id_len": 32,
+  "nci": 17,
+  "ran_node_name": "ngap-tester"
+}

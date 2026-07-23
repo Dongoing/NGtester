@@ -1,0 +1,6 @@
+{"attack": "ho-window-inject", "step": "handover-required", "source_amf_ue_id": 1, "target_gnb_id": 4660}
+{"attack": "ho-window-inject", "step": "handover-request", "message": "HandoverRequest", "amf_ue_ngap_id": 2, "ran_ue_ngap_id": null}
+{"attack": "ho-window-inject", "step": "handover-request-ack", "target_amf_ue_id": 2, "target_ran_ue_id": 99, "attacker_n3_ip": "172.30.200.4"}
+{"attack": "ho-window-inject", "step": "p21-ul-ran-status", "source_amf_ue_id": 1}
+{"attack": "ho-window-inject", "step": "p09-handover-notify", "target_amf_ue_id": 2, "target_ran_ue_id": 99}
+{"attack": "ho-window-inject", "step": "downlink-ran-status", "result": "DownlinkRANStatusTransfer"}
