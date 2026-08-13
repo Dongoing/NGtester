@@ -1,0 +1,52 @@
+======== SUMMARY — InitialUE ONLY (no Release) — Open5GS 2026-07-31 ========
+
+Setup: CM-CONNECTED victim on legit gNB; attacker sends one InitialUEMessage
+       with victim 5G-S-TMSI + full plain Service Request NAS.
+       Tester does NOT send UEContextReleaseRequest.
+
+BEFORE: cm=connected AU=11 RU=8 TMSI=c000061a gnb=1 ping=0% packet loss
+AFTER:  cm=connected AU=13 RU=9 gnb=1 ping=0% packet loss
+PING WINDOW (across InitialUE ~20s): 5% packet loss
+
+------------------------------------------------------------------------
+MILLISECOND TIMELINE (from AMF + UE + legit gNB logs)
+------------------------------------------------------------------------
+t0  11:01:19.732  AMF  InitialUEMessage from attacker
+                  Holding NG Context  old RU=8 / AU=11
+                  new attacker leg    RU=99 / AU=12
+t0+1ms            AMF  Service request (forged plain NAS)
+                  ERROR No Security Context → Service Reject path to attacker
+t0+59ms 11:01:19.791
+                  AMF  UplinkNASTransport on STALE AU=11
+                       → sending UEContextReleaseCommand  (to LEGIT gNB!)
+                  UE   → CM-IDLE  (still MM-REGISTERED)
+                  gNB  UE Context Release Command received
+                       (+ Paging received in same ms — follow-on)
+t0+555ms 11:01:20.287
+                  UE   Service request (IDLE-UPLINK-DATA-PENDING)  ← real UE
+                  UE   RRC-CONNECTED / CM-CONNECTED
+t0+559ms          AMF  InitialUEMessage from LEGIT gNB  RU=9 / AU=13
+                  AMF  Service request (real, integrity OK)
+t0+561ms          UE   Service Accept received → MM-REGISTERED again
+
+------------------------------------------------------------------------
+WHAT HAPPENS TO THE UE (answer)
+------------------------------------------------------------------------
+1. Not a permanent "disconnect from the network" (still registered).
+2. Yes, a short AN release: AMF clears the OLD N2 leg on the legit gNB
+   because it became stale after Holding/rebind → UE goes CM-IDLE (~0.5s).
+3. UE self-heals with a normal Service Request → Service Accept; new AU=13.
+4. User-plane: only ~5% loss in the continuous ping window; after recovery 0%.
+
+Causal chain (important):
+  Attacker's InitialUE → Holding → forged SR fails
+  → legit gNB still has old AU → any UL NAS on stale context
+  → AMF itself sends Release Command to legit gNB
+  → UE Idle → UE Service Request recovers
+
+So the UE impact is an AMF-driven stale-context cleanup, NOT the attacker
+sending Release, and NOT a lasting PDU teardown.
+
+Artifacts: amf/smf/gnb pcaps, attack.jsonl, ue_info_*.json, ping_window.log,
+           logs_since_attack.txt, timeline.txt
+Script:    pcap/initue_open5gs/run_contrast.sh

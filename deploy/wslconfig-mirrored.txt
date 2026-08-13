@@ -1,0 +1,17 @@
+# ------------------------------------------------------------------------------
+# Copy the [wsl2] block below into:   %USERPROFILE%\.wslconfig   (i.e.
+#   C:\Users\<you>\.wslconfig)  on the TEST HOST, then run:  wsl --shutdown
+#
+# Why: NGAP runs over SCTP. Windows WinNAT and Docker Desktop host-networking do
+# NOT pass SCTP to an external AMF. "mirrored" mode makes WSL2 share the Windows
+# host's real network interfaces (no NAT), so the tester can reach the AMF over
+# the host NIC directly with the host's own IP as the SCTP source.
+#
+# Requirements: Windows 11 22H2 or newer, and IPv6 must be ENABLED on the host
+# (disabling IPv6 breaks mirrored mode -> WSL shows only the 'lo' interface).
+# ------------------------------------------------------------------------------
+[wsl2]
+networkingMode=mirrored
+dnsTunneling=true
+firewall=true
+autoProxy=true

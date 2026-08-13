@@ -41,7 +41,8 @@ case "$CORE" in
     GNB=ueransim-free5gc-ueransim-gnb-1; UE=ueransim-free5gc-ueransim-ue-1
     VIDRE='AU:[0-9]+'                       # free5GC logs AMF-UE-NGAP-ID as AU:<n>
     REJECT='is not in Ran|Unknown.*UENGAPID|not in Ran'
-    ACCEPT='Handle UEContextReleaseRequest|UE Context Release Command'
+    # Do NOT match "Handle UEContextReleaseRequest" — free5GC logs that even on reject.
+    ACCEPT='Send UE Context Release Command|Release Ue Context'
     ;;
   open5gs)
     AMF=o5gs-amf; SMF=o5gs-smf

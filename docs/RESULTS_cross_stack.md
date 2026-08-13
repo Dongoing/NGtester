@@ -11,6 +11,7 @@
 |---|:--:|:--:|:--:|:--:|---|
 | **Path Switch → {NH,NCC} 泄露** | ✅🔑 | ✅🔑 **+N3** | ⚪ 未实现 | ✅🔑 **+N3** | 密钥泄露；free5GC/SD-Core 连 UPF N3 端点也泄 |
 | **UE Context Release → 远端断连** | 🛡 拒绝 | 🛡 拒绝 | ◑ 无效果 | ✅ **断连** | **同一攻击四结果**：绑定挡住 / 命令回请求方 / 命令达受害 gNB |
+| **InitUE→Release 链**（完整 SR） | ◑→✅ **Reject DL 学 AU** + Rel(learned) | 🛡 不偷 serving / 无 DL | ◑ 学 AU；Command→请求方 | (未复测) | Open5GS Holding+cause 0x09；free5GC 要 integrity；见 `chain-initue-release` |
 | **Error Indication → 跨UE释放** | ✅ | 🛡 拒绝 | ⚪ | (未测) | Open5GS 绕过 :179；free5GC 绑定挡住 |
 | **NG Reset(部分) → 拆除/崩溃** | ✅🔥 **崩 AMF** | 🛡 存活(g01=🟢) | 🛡 存活(develop镜像实测；源码8e32ecc标🔴) | 🛡 存活(g01=🟢, gnb作用域) | **仅 Open5GS：单包崩溃 AMF（已提 issue）** |
 | **Handover Required → 强制迁移** | ✅ 无绑定 | (未测) | (未测) | (未测) | Open5GS 无绑定处理到 target 解析 |
@@ -24,7 +25,7 @@
 
 🔑=升级为机密泄露 · 🔥=远程 DoS 崩溃 · +N3=额外泄露 UPF N3 端点
 
-## 三条关键结论（供论文）
+## 四条关键结论（供论文）
 
 1. **"缺失绑定"是 3GPP 标准层缺陷，但影响强依赖实现。** 同一条 UE Context Release Request：
    - **Open5GS / free5GC**：内联/集中 `ranUe.Ran != ran` 绑定检查 → **拒绝**（回 Error Indication）。
@@ -43,12 +44,18 @@
 3. **Open5GS 的 NG Reset 可被单包崩溃 AMF**（`Assertion gnb->ng_reset_ack`，跨 gNB 触发），
    是本轮新发现的**远程 DoS**，其它三栈无此缺陷。已备好可提交的 issue（`open5gs_issue_ng_reset_crash.md`）。
 
+4. **InitialUE 是「脏改绑」原语，与 Path Switch（保 AU 改绑）对照。** 完整明文 Service Request
+   （`builders.service_request_nas`）在 Open5GS/OAI 可诱出 **Service Reject + 5GMM cause** 的
+   DownlinkNASTransport，从而暴露**新 AMF-UE-NGAP-ID**，再对 learned AU 发 Release；
+   free5GC 不偷 serving 且明文 SR 被 header 检查拒绝、无 DL。脚本：
+   `verify_chain_initue_then_release.sh`、`pcap/run_full_sr_probe.sh`。
+
 ## 各栈"最硬化 → 最脆弱"排序（就本伪造 gNB 面的实测）
 
 **free5GC ≈ Open5GS（绑定硬化）> OAI（子集+命令回请求方，实际最难利用）> SD-Core（删守卫，最脆弱）**
 
-例外：Open5GS 虽绑定较硬，却**独有 NG Reset 崩溃**这一严重 DoS；free5GC 最均衡（绑定硬化且无
-崩溃缺陷，但 Path Switch 连 N3 泄露）。
+例外：Open5GS 虽单独 Release 绑定较硬，却**独有 NG Reset 崩溃**，且 InitUE+完整 SR 可
+Holding 改绑并学新 AU；free5GC 最均衡（绑定硬化、InitUE 不偷 serving、无崩溃，但 Path Switch 连 N3 泄露）。
 
 ## 单一决定性缓解
 

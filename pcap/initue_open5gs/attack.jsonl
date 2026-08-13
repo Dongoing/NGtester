@@ -1,0 +1,3 @@
+{"attack": "initial-ue", "ran_ue_id": 99, "amf_set_id": 1, "amf_pointer": 0, "tmsi": "c00000a7", "reply": null}
+{"attack": "initial-ue", "ran_ue_id": 99, "amf_set_id": 1, "amf_pointer": 0, "tmsi": "c00002b5", "reply": null}
+{"attack": "initial-ue", "ran_ue_id": 99, "amf_set_id": 1, "amf_pointer": 0, "tmsi": "c000061a", "reply": "DownlinkNASTransport"}

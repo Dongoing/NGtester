@@ -80,6 +80,8 @@ the SBI/PFCP follow-on the 30 s tail captured.
 | `open5gs_p16_ul_nrppa/` | UL UE-Assoc NRPPa (proc 50) | 1 | AMF: NGSetup(21)+NRPPa(50); `Not implemented(proc:50)`. |
 | `open5gs_p17_cell_trace/` | Cell Traffic Trace (proc 2) | 1 | AMF: NGSetup(21)+CellTrafficTrace(2); `Not implemented(proc:2)`. |
 | `open5gs_p21_ul_ran_status/` | UL RAN Status Transfer (proc 49) idle | 1 | AMF: NGSetup(21)+ULRANStatus(49)+ErrorIndication(9); gated by missing handover target context. See `open5gs_ho_window_p21_p09/` for mid-HO CONFIRMED. |
+| `chain_open5gs_initue_then_release/` | InitUE→Release（早期 stub NAS） | varies | Holding 改绑成立；stub 无 DL → 未学 AU（见 RESULTS_open5gs 订正）。 |
+| `probe_full_sr_open5gs/` | **InitUE+完整 SR→Release** | e.g. 8→9 | **ServiceReject DL** cause 0x09 + 学 AU=9；Release(learned)→Command；`attack.jsonl` 含 `nas` cause。脚本：`run_full_sr_probe.sh open5gs` / `verify_chain_initue_then_release.sh open5gs`。 |
 
 Exact commands are recorded in each `attack.jsonl` and mirror:
 `./capture_attack.sh open5gs_T0X_... o5gs-amf o5gs-smf ueransim-open5gs-ueransim-gnb-1 net-5glab 30 -- <subcommand>` (with `CFG_CORE=open5gs`).
@@ -92,6 +94,7 @@ Exact commands are recorded in each `attack.jsonl` and mirror:
 |---|---|---|---|
 | `free5gc_T01_path_switch_key_n3_disclosure/` | Path Switch (proc 25) | 2 | AMF: NGSetup(21)+PathSwitch(25); **attack.jsonl leaks NH `63f80bc7…` + UPF N3 endpoint `172.30.20.11:TEID=6`** (free5GC's ACK transfer is non-empty, unlike Open5GS); SMF pcap: SBI + PFCP follow-on. |
 | `free5gc_T08_son_inject/` | UL RAN Config Transfer (proc 48) | — | AMF: NGSetup(21)+ULRANCfg(48)+DownlinkRANCfg(6) = blind SON relay to the target gNB. |
+| `chain_free5gc_initue_then_release/` / `probe_full_sr_free5gc/` | InitUE→Release | varies | 不偷 serving；完整明文 SR → `wrong security header type: 0x0`、**无 DL**；Release 仍 `not in Ran`。 |
 
 ## SD-Core (kind, AMF pod @172.20.0.2) — DONE
 
@@ -132,6 +135,7 @@ p16 ul-nrppa / p21 ul-ran-status. Or `SECTION=oai bash run_remaining_captures.sh
 | `oai_p09_handover_notify/` | proc 11 | **Retest 2026-07-22 (replaced)**: Release(41)→victim gNB→CM-IDLE; ~11s later Service Request → AMF `5GMM-DEREGISTERED` rejects (cause 101). Logs+SUMMARY in folder. |
 | `oai_p16_ul_nrppa_wrongran/` / `oai_p16_ul_nrppa_realpair/` | proc 50 | OAI ASN.1 decode error (both RAN=99 and RAN=1) |
 | `oai_p17_cell_trace/` | proc 2 | stub / no effect |
+| `chain_oai_initue_then_release/` | InitUE→Release | DL 学新 AU；Release Command→攻击者；受害 DN 仍通 |
 | `oai_p21_ul_ran_status/` | proc 49 | handler tried DL relay; SCTP assoc 0 missing (no HO target) |
 
 ## SD-Core — new5 (2026-07-22)

@@ -1,0 +1,8 @@
+# 部署脚本必须保持 LF，否则在 WSL/bash 里跑会报 `bad interpreter: /bin/bash^M`
+*.sh   text eol=lf
+*.env  text eol=lf
+
+# 抓包等二进制文件不做行尾转换
+*.pcap binary
+*.png  binary
+*.jpg  binary

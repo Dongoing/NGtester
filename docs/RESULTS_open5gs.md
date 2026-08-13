@@ -13,6 +13,7 @@
 | **T04** NG Reset(部分) → 跨 gNB 拆除 | ✅ **CONFIRMED + 升级为 AMF 崩溃** | 见下（**新发现：单包 crash AMF**）|
 | **T05** Handover Required → 强制迁移 | ✅ **无绑定确认**（密钥泄露条件性）| `HandoverRequired`→`cannot find target gNB-id[0xabcde]` (ngap-handler.c:3460) |
 | **T06** UE Context Release | ✅ **阴性对照通过**（攻击被拒）| UE 存活(ping 0% 丢包)；:1784 内联绑定生效 |
+| **chain-initue** 完整 SR→Release | ◑→✅ **学 AU + Rel(learned)** | ServiceReject cause 0x09；Holding 改绑；`probe_full_sr_open5gs/` |
 | **T07** RAN Config Update → 寻呼傍受 | ✅ **CONFIRMED**（第二攻击面）| 攻击者截获 3 条 PAGING，含受害 **5G-S-TMSI=c000019c** |
 | **T08** UL RAN Config Transfer → SON 注入 | ✅ **CONFIRMED**（盲中继）| AMF 把 SON 配置中继给受害 UERANSIM gNB（其收到并记 "Unhandled NGAP (24)"）|
 | **p06** PDU Session Resource Notify | ⚪ **NOT-APPLICABLE**（未实现）| 2026-07-22 live：`Not implemented(choice:1, proc:30)` (`ngap-sm.c:128`)；pcap `open5gs_p06_pdu_notify/` |
@@ -137,6 +138,47 @@ AMF **无源 gNB 绑定地**定位了受害 UE(2) 并执行到 target-gNB 解析
 `:1784` 内联 `ran_ue->gnb_id != gnb->id` 绑定检查，跨 gNB 释放被拒。**证明我们的方法也能如实
 显示“加固路径挡住攻击”**，结论是过程/版本相关，而非“无差别可打”。
 
+## chain-initue-release — InitialUE(TMSI) → Release（2026-07-31，订正）◑→✅ 学 AU
+
+脚本：`verify_chain_initue_then_release.sh open5gs`、`pcap/run_full_sr_probe.sh open5gs`。  
+证据：`pcap/chain_open5gs_initue_then_release/`（早期 stub）、`pcap/probe_full_sr_open5gs/`（完整 SR）。
+
+### 早期 stub NAS（`7e004c00`）— 学不到 AU
+
+1. InitialUE：`Holding NG Context` + 攻击者腿新 AU（软改绑成立）。
+2. stub 过短 → 无 DownlinkNAS → tester **学不到**新 AU，跳过 learned Release。
+3. 旧 AU 已失效；合法腿 stale 后可能被 AMF 清上下文 / UE 重注册。
+
+### 完整明文 Service Request（默认，`builders.service_request_nas`）— ✅ 学到 AU
+
+NAS 例：`7e004c110007030040c0000314`（EPD+plain+SR+ngKSI/ST+LV-E 5G-S-TMSI；**不含**
+Uplink data status——InitialUE 明文路径上该 IE 非 cleartext-OK，Open5GS 会报
+`Non cleartext IEs` → cause 0x5F）。
+
+实测（受害 AU=8 → 新 AU=9，TMSI=`c0000314`）：
+
+| 步骤 | 结果 |
+|------|------|
+| InitialUE | `Holding NG`（旧 RU=6/AU=8）→ 攻击者腿 **AU=9 RU=99** |
+| DL | **DownlinkNASTransport** AU=9 |
+| NAS | **ServiceReject** cause=**0x09** *UE identity cannot be derived by the network*（日志 `No Security Context`） |
+| Release(旧 AU=8) | 攻击者侧无 Command（上下文已迁走） |
+| Release(learned AU=9) | **收到 UEContextReleaseCommand** → Complete 清攻击者腿 |
+| 受害影响 | 改绑搅乱 serving → UE 可短暂 Idle，随后自行 Service Request 恢复；**非**稳定跨 gNB PDU 拆除 |
+
+与 Path Switch 链对比：InitUE **换新 AU** 且改绑；完整 SR 用 **Service Reject DL** 暴露新 AU，
+再对 learned AU 放行 Release。Path Switch 则 **保持同 AU** 改绑后直接放行 Release。
+
+### 仅 InitialUE（不发 Release）对受害 UE 的影响（2026-07-31 专抓）
+
+脚本/证据：`pcap/initue_open5gs/run_contrast.sh`、`SUMMARY.txt`。
+
+毫秒级因果链：Holding → 攻击者腿新 AU → 合法腿变 stale → AMF **主动**对合法 gNB 发
+`UEContextReleaseCommand`（清 stale）→ UE **CM-IDLE ~0.5s** → UE 自发 Service Request →
+Service Accept → 新 AU，CM-CONNECTED。窗口 ping **约 5%** 丢包，事后 **0%**。
+
+→ **不是永久断网**；是短暂 AN 释放 + 自愈。驱动 Release 的是 AMF 清 stale，不是攻击者发的 Release。
+
 ## T07 — RAN Configuration Update → 寻呼(Paging)傍受 ✅（第二独立攻击面）
 
 攻击链（全部实测）：
@@ -175,7 +217,8 @@ source/target 邻居关系校验）。UERANSIM 未实现 SON 处理故记为 Unh
 | **寻呼傍受 + 5G-S-TMSI 泄露** | ✅ RAN Config Update 声称假 TAI（T07）|
 | **跨 gNB SON/Xn 配置注入** | ✅ UL RAN Config Transfer 盲中继（T08）|
 | 下行用户面即时傍受 | ❌ 本栈未成立（SMF `handover.prepared` 门控）|
-| 加固过程正确挡住 | ✅ UE Context Release（T06 阴性对照）|
+| 加固过程正确挡住 | ✅ 单独 UE Context Release（T06 阴性对照）|
+| **InitUE→Release（完整 SR）** | ◑→✅ Holding 改绑 + ServiceReject DL 学新 AU + Release(learned)；受害可短暂 Idle 后自愈 |
 | 新 5 builders（idle）| ⚪/🟡 常态不可利用（3 未实现 + 2 HO 门控）|
 | **HO 窗口 p21/p09** | 🔴 ✅ p03 自开窗后：PDCP 中继 + 受害源 gNB 释放 |
 

@@ -33,6 +33,7 @@ CORES = {
     "4": ("SD-Core", "config/sdcore.json"),
     "5": ("IPLOOK", "config/iplook.json"),
     "6": ("Agrand", "config/agrand.json"),
+    "7": ("Huawei AMF", "config/huawei.json"),
 }
 
 

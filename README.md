@@ -158,6 +158,8 @@ If registration fails on WSL2: `../5g-lab/scripts/fix-clock.sh`, then restart gN
 | `ng-setup` | NG SETUP | accepted on all 4 |
 | `path-switch --source-amf-ue-id N` | PATH SWITCH | 🔴🔑 Open5GS/free5GC/SD-Core (+N3 on free5GC/SD-Core); ⚪ OAI |
 | `ue-release --amf-ue-id N` | UE CONTEXT RELEASE REQ | ✅ SD-Core victim disconnect; 🛡 Open5GS/free5GC; ◑ OAI (cmd→requester) |
+| **`chain-initue-release`** | InitialUE(TMSI)+完整 SR→Release | Open5GS：ServiceReject DL 学新 AU + Release(learned)✅；OAI 学 AU 但 cmd→请求方；free5GC 🛡 无 DL |
+| `chain-ps-release` | PathSwitch→Release | binding bypass on Open5GS/free5GC (same AU kept) |
 | `error-indication --amf-ue-id N` | ERROR INDICATION | ✅ Open5GS; 🛡 free5GC |
 | `ng-reset --targets a[:r],...` | NG RESET (partial) | ✅🔥 Open5GS AMF crash; 🛡 others |
 | `handover-required --amf-ue-id N` | HANDOVER REQUIRED | ✅ Open5GS no-binding (cond. disclosure) |

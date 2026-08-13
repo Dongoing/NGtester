@@ -67,6 +67,22 @@ UL 端点 `172.30.20.11:TEID=2`**（`ack_transfer_hex=401fac1e140b00000002`）�
 **结论：Open5GS 上生效的 UE 上下文类攻击（T03/T04），在 free5GC 上因强制绑定而被拒**；
 这正是论文「同一攻击、不同实现、不同结果」的横向对照证据。
 
+## chain-initue-release — InitialUE(TMSI) → Release（2026-07-31，订正）🟢
+
+脚本：`verify_chain_initue_then_release.sh free5gc`、`pcap/run_full_sr_probe.sh free5gc`。  
+证据：`pcap/chain_free5gc_initue_then_release/`、`pcap/probe_full_sr_free5gc/`。
+
+1. **H0** 单独 Release → `ErrorIndication` / `not in Ran`；ping **0%**。
+2. **InitialUE（完整明文 SR）**：`New RanUe` + `find AmfUe` by TMSI，再 `New AmfUe ""` —
+   **不偷 serving**。NAS 已能解码（不再 stub EOF），但报  
+   `wrong security header type: 0x0, message type 76`  
+   （InitialUE 上 Service Request **必须** integrity-protected，`nas_security/security.go`）。
+3. **无 DL** → 无 learned AU；`--nas-integrity`（假 MAC）多半卡在 MAC 校验失败，同样常不回 Reject。
+4. **Release(victim AU)**（同联）：仍 `not in Ran` → **无 Command**；ping **0%**。
+
+→ InitUE **不能**像 Path Switch 那样解锁 Release；相对 Open5GS「完整 SR → ServiceReject DL →
+学 AU → Release(learned)」为阴性对照。
+
 ## T07 — RAN Config Update 假 TAI → 寻呼截获（g02）🔴 ✅（2026-07-22 复测）
 
 `ran-config-update --tac 1` → `RANConfigurationUpdateAcknowledge`（无覆盖校验）。

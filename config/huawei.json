@@ -1,0 +1,16 @@
+{
+  "_comment": "Real Huawei AMF. Every field below (except ran_node_name/nci) MUST match what the Huawei AMF has provisioned for this gNB, or NG Setup is REJECTED. Confirm mcc/mnc/tac/sst/sd/gnb_id with the AMF operator BEFORE running. The AMF also usually whitelists the gNB source IP: run 'sctp-ping' to see which source IP the AMF sees, and have that IP provisioned.",
+  "amf_addr": "14.55.2.5",
+  "amf_port": 38412,
+  "mcc": "001",
+  "mnc": "01",
+  "tac": 1,
+  "sst": 1,
+  "sd": "010203",
+  "gnb_id": 4660,
+  "gnb_id_len": 32,
+  "nci": 17,
+  "ran_node_name": "ngap-tester",
+  "bind_ip": null,
+  "timeout": 5.0
+}

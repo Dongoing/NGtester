@@ -17,6 +17,7 @@ from . import ngap
 # NGAP protocol-IE ids we read out of the acknowledge (TS 38.413).
 IE_AMF_UE_NGAP_ID = 10
 IE_RAN_UE_NGAP_ID = 85
+IE_UE_NGAP_IDS = 114  # UE-NGAP-IDs (pair) — used by UEContextReleaseCommand
 IE_PDU_SWITCHED_LIST = 77
 IE_SECURITY_CONTEXT = 93
 
@@ -148,6 +149,121 @@ def paging_info(pdu_val) -> dict:
         tac = tai.get("tAC")
         out["tais"].append(tac.hex() if isinstance(tac, (bytes, bytearray)) else tac)
     return out
+
+
+# Common 5GMM cause values (TS 24.501 Table 9.11.3.2.1) seen in rejects.
+_GMM_CAUSE = {
+    0x03: "Illegal UE",
+    0x06: "Illegal ME",
+    0x07: "5GS services not allowed",
+    0x09: "UE identity cannot be derived by the network",
+    0x0A: "Implicitly deregistered",
+    0x0B: "PLMN not allowed",
+    0x0F: "No suitable cells in tracking area",
+    0x1B: "N1 mode not allowed",
+    0x5F: "Semantically incorrect message",
+    0x60: "Invalid mandatory information",
+    0x61: "Message type non-existent or not implemented",
+    0x62: "Message type not compatible with the protocol state",
+    0x63: "Information element non-existent or not implemented",
+    0x64: "Conditional IE error",
+    0x65: "Message not compatible with the protocol state",
+    0x67: "Protocol error, unspecified",
+}
+
+
+def nas_reject_info(nas_pdu) -> dict:
+    """Best-effort parse of plain 5GMM Service/Registration Reject in a NAS-PDU.
+
+    Returns {} if not a recognizable plain reject. Used after InitialUE to show
+    whether the AMF answered with a 5GMM cause (and which one).
+    """
+    if not isinstance(nas_pdu, (bytes, bytearray)) or len(nas_pdu) < 4:
+        return {}
+    b = bytes(nas_pdu)
+    # plain: EPD=7E, sec-hdr=0, msg-type, cause
+    if b[0] != 0x7E:
+        return {}
+    # security-protected: skip MAC/SQN and look at inner plain header
+    if (b[1] & 0x0F) != 0 and len(b) >= 8:
+        inner = b[7:]  # after EPD, sec-hdr, MAC(4), SQN(1) — approx
+        if inner and inner[0] == 0x7E:
+            b = inner
+    if len(b) < 4 or b[0] != 0x7E or (b[1] & 0x0F) != 0:
+        return {}
+    msg_type = b[2]
+    cause = b[3]
+    names = {
+        0x4D: "ServiceReject",
+        0x44: "RegistrationReject",
+        0x41: "AuthenticationReject",
+        0x47: "DeregistrationRequest_UE_terminated",
+    }
+    if msg_type not in names:
+        return {"message": f"plain_nas_type_0x{msg_type:02x}", "raw_hex": b.hex()}
+    return {
+        "message": names[msg_type],
+        "gmm_cause": cause,
+        "gmm_cause_name": _GMM_CAUSE.get(cause, f"cause_0x{cause:02x}"),
+        "raw_hex": b.hex(),
+    }
+
+
+def downlink_nas_info(pdu_val) -> dict:
+    """IDs + embedded NAS reject summary from DownlinkNASTransport."""
+    if ngap.message_type(pdu_val) != "DownlinkNASTransport":
+        return {}
+    out = ue_ngap_ids(pdu_val)
+    try:
+        ies = {k: _unwrap(v) for k, v in ngap.get_ies(pdu_val).items()}
+    except Exception:
+        return out
+    nas = ies.get(38)  # NAS-PDU
+    if isinstance(nas, tuple) and len(nas) == 2:
+        nas = nas[1]
+    if isinstance(nas, (bytes, bytearray)):
+        rej = nas_reject_info(nas)
+        if rej:
+            out["nas"] = rej
+        else:
+            out["nas_hex"] = bytes(nas).hex()
+    return out
+
+
+def ue_ngap_ids(pdu_val) -> dict:
+    """Pull AMF/RAN-UE-NGAP-IDs from any UE-associated NGAP PDU (DL NAS, ICS,
+    Release Command, Error Indication, …). Returns {} if neither IE is present.
+
+    Used by chain-initue-release: after a forged InitialUEMessage the AMF may
+    allocate a *new* AmfUeNgapId and push DownlinkNASTransport /
+    InitialContextSetupRequest / UEContextReleaseCommand on the attacker TNLA;
+    those IEs tell us which AU the follow-up Release should target.
+
+    UEContextReleaseCommand often carries IE 114 (UE-NGAP-IDs) as a pair instead
+    of bare IEs 10/85 — unwrap that shape too.
+    """
+    try:
+        ies = {k: _unwrap(v) for k, v in ngap.get_ies(pdu_val).items()}
+    except Exception:
+        return {}
+    amf = ies.get(IE_AMF_UE_NGAP_ID)
+    ran = ies.get(IE_RAN_UE_NGAP_ID)
+    pair = ies.get(IE_UE_NGAP_IDS)
+    if pair is not None and (amf is None or ran is None):
+        # shapes: ("uE-NGAP-ID-pair", {...}) or already-unwrapped dict
+        body = pair[1] if (isinstance(pair, tuple) and len(pair) == 2) else pair
+        if isinstance(body, dict):
+            if amf is None:
+                amf = body.get("aMF-UE-NGAP-ID")
+            if ran is None:
+                ran = body.get("rAN-UE-NGAP-ID")
+    if amf is None and ran is None:
+        return {}
+    return {
+        "message": ngap.message_type(pdu_val),
+        "amf_ue_ngap_id": amf,
+        "ran_ue_ngap_id": ran,
+    }
 
 
 # ---------------------------------------------------------------- Handover Request (HO-window)

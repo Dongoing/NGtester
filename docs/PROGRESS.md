@@ -13,6 +13,7 @@ Detail: `RESULTS_cross_stack.md` + `RESULTS_{open5gs,free5gc,oai,sdcore}.md`.
 |---|:--:|:--:|:--:|:--:|
 | Path Switch → {NH,NCC} disclosure | ✅🔑 | ✅🔑 **+N3** | ⚪ | ✅🔑 **+N3** |
 | UE Context Release → remote disconnect | 🛡 | 🛡 | ◑ (cmd→requester) | ✅ **disconnect** |
+| InitUE→Release (full plain SR) | ◑→✅ learn AU + Rel(learned) | 🛡 no steal / no DL | ◑ learn AU; cmd→attacker | — |
 | Error Indication → cross-UE release | ✅ | 🛡 | ⚪ | — |
 | NG Reset(partial) → teardown / crash | ✅🔥 **AMF SIGABRT** | 🛡 | ◑ | 🛡 (gnb-scoped) |
 | Handover Required → forced relocation | ✅ | — | — | — |
@@ -28,7 +29,10 @@ Three headline findings:
 
 Core set: `ng_setup_request`, `path_switch_request` (+transfer), `ue_context_release_request`,
 `error_indication`, `ng_reset_partial`, `handover_required`, `ran_configuration_update` (proc 35),
-`uplink_ran_configuration_transfer` (proc 48). Plus helpers `gtpu_sink`, `sweep`, paging decoder.
+`uplink_ran_configuration_transfer` (proc 48), `initial_ue_message`,
+`service_request_nas` / `service_request_nas_integrity_protected` (完整明文/假 MAC SR).
+CLI chains: `chain-ps-release`, `chain-initue-release`. Plus helpers `gtpu_sink`, `sweep`, paging /
+NAS-reject decoders.
 
 Newest 5 (procedureCode): `pdu_session_resource_notify` (30), `handover_notify` (11),
 `uplink_ue_associated_nrppa_transport` (50), `cell_traffic_trace` (2), `uplink_ran_status_transfer` (49).
@@ -61,9 +65,9 @@ follow-on). Helper: `capture_attack.sh`.
 
 | core | captured |
 |---|---|
-| Open5GS | T01 path-switch, T03 error-ind, **T04 NG-Reset AMF-CRASH**, T05 handover-req, T08 SON; **new5** idle 3×Not-impl+2×gated; **HO-window p21/p09 CONFIRMED** |
-| free5GC | T01 path-switch (NH + N3 leak), T07 paging, T08 SON; **new5** all 5 **BLOCKED** by `ranUeFind` binding |
-| OAI | prior T01/T04/T06/T07/T08; **new5**: **p09 HandoverNotify → Release to victim gNB CONFIRMED**; p06/p17 stub; p16 decode-fail; p21 no HO-target |
+| Open5GS | T01 path-switch, T03 error-ind, **T04 NG-Reset AMF-CRASH**, T05 handover-req, T08 SON; **new5** idle 3×Not-impl+2×gated; **HO-window p21/p09 CONFIRMED**; **chain-initue full-SR → ServiceReject DL + learn AU** (`probe_full_sr_open5gs/`) |
+| free5GC | T01 path-switch (NH + N3 leak), T07 paging, T08 SON; **new5** all 5 **BLOCKED** by `ranUeFind` binding; **chain-initue** 🛡 (plain SR wrong sec-hdr / no DL) |
+| OAI | prior T01/T04/T06/T07/T08; **new5**: **p09 HandoverNotify → Release to victim gNB CONFIRMED**; p06/p17 stub; p16 decode-fail; p21 no HO-target; **chain-initue** learn AU, cmd→requester (`chain_oai_initue_then_release/`) |
 | SD-Core | T01 path-switch, **T06 UE-release**, T08 SON; **new5**: **p06/p17 CONFIRMED rebind**; p09/p16/p21 per-ran BLOCKED |
 
 **TODO captures:** (none for new5 / HO-window on Open5GS).

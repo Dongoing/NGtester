@@ -1,0 +1,33 @@
+======== AMF since mark ========
+07/31 11:01:19.732: [amf] INFO: InitialUEMessage (../src/amf/ngap-handler.c:612)
+07/31 11:01:19.732: [amf] WARNING: [suci-0-001-01-0000-0-0-0000000001] Holding NG Context (../src/amf/ngap-handler.c:792)
+07/31 11:01:19.732: [amf] WARNING: [suci-0-001-01-0000-0-0-0000000001]    RAN_UE_NGAP_ID[8] AMF_UE_NGAP_ID[11] (../src/amf/ngap-handler.c:792)
+07/31 11:01:19.732: [amf] INFO:     RAN_UE_NGAP_ID[99] AMF_UE_NGAP_ID[12] TAC[1] CellID[0x11] (../src/amf/ngap-handler.c:815)
+07/31 11:01:19.733: [gmm] INFO: Service request (../src/amf/gmm-sm.c:1835)
+07/31 11:01:19.733: [gmm] ERROR: No Security Context (../src/amf/gmm-sm.c:1873)
+07/31 11:01:19.733: [gmm] WARNING: [imsi-001010000000001] Failure in transaction; restoring context and transitioning to REGISTERED. (../src/amf/gmm-sm.c:1879)
+07/31 11:01:19.791: [amf] ERROR: UplinkNASTransport on stale NG context [AMF_UE_NGAP_ID:11] - sending UEContextReleaseCommand (../src/amf/ngap-handler.c:911)
+07/31 11:01:19.792: [amf] INFO: UE Context Release [Action:1] (../src/amf/ngap-handler.c:1905)
+07/31 11:01:19.792: [amf] INFO:     RAN_UE_NGAP_ID[8] AMF_UE_NGAP_ID[11] (../src/amf/ngap-handler.c:1906)
+07/31 11:01:20.288: [amf] INFO: InitialUEMessage (../src/amf/ngap-handler.c:612)
+07/31 11:01:20.289: [amf] INFO:     RAN_UE_NGAP_ID[9] AMF_UE_NGAP_ID[13] TAC[1] CellID[0x10] (../src/amf/ngap-handler.c:815)
+07/31 11:01:20.289: [gmm] INFO: Service request (../src/amf/gmm-sm.c:1835)
+07/31 11:01:20.290: [amf] WARNING: [imsi-001010000000001:1] N2 transfer message duplicated. Overwritten (../src/amf/nsmf-handler.c:336)
+======== UE since mark ========
+[2026-07-31 11:01:19.791] [nas] [info] UE switches to state [MM-REGISTER-INITIATED]
+[2026-07-31 11:01:19.792] [nas] [info] UE switches to state [CM-IDLE]
+[2026-07-31 11:01:19.792] [nas] [info] UE switches to state [MM-REGISTERED/NORMAL-SERVICE]
+[2026-07-31 11:01:20.287] [nas] [debug] Service request required due to [IDLE-UPLINK-DATA-PENDING]
+[2026-07-31 11:01:20.287] [nas] [debug] Sending Service Request due to [IDLE-UPLINK-DATA-PENDING]
+[2026-07-31 11:01:20.287] [nas] [info] UE switches to state [MM-SERVICE-REQUEST-INITIATED]
+[2026-07-31 11:01:20.288] [rrc] [info] RRC connection established
+[2026-07-31 11:01:20.288] [rrc] [info] UE switches to state [RRC-CONNECTED]
+[2026-07-31 11:01:20.288] [nas] [info] UE switches to state [CM-CONNECTED]
+[2026-07-31 11:01:20.291] [nas] [info] Service Accept received
+[2026-07-31 11:01:20.291] [nas] [info] UE switches to state [MM-REGISTERED/PS]
+[2026-07-31 11:01:20.291] [nas] [info] UE switches to state [MM-REGISTERED/NORMAL-SERVICE]
+======== legit gNB since mark ========
+[2026-07-31 11:01:19.791] [ngap] [debug] Paging received
+[2026-07-31 11:01:19.792] [ngap] [debug] UE Context Release Command received
+[2026-07-31 11:01:20.288] [ngap] [debug] Initial NAS message received from UE[5]
+[2026-07-31 11:01:20.290] [ngap] [debug] Initial Context Setup Request received

@@ -17,3 +17,7 @@ Thumbs.db
 # Local scratch (keep evidence/ and pcap/ tracked)
 *.tmp
 *.bak
+
+# deploy: run-gnb.sh / run-ue.sh 渲染出的运行时配置（勿提交，避免陈旧）
+deploy/real-amf/gnb.yaml
+deploy/real-amf/ue.yaml

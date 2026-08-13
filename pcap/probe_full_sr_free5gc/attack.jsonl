@@ -1,0 +1,3 @@
+{"attack": "chain-initue-release", "step": "initial-ue", "ran_ue_id": 99, "amf_set_id": 1016, "amf_pointer": 0, "tmsi": "00000005", "victim_amf_ue_id": 5}
+{"attack": "chain-initue-release", "step": "ue-release", "target": "victim", "amf_ue_ngap_id": 5, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "release-command", "target": "victim", "result": null}

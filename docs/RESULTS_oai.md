@@ -81,6 +81,21 @@ UE 的真实 gNB**。实测：OAI 回我们一条 `UEContextReleaseCommand`，�
 → **订正 `SOURCE_VERIFICATION.md` 对 OAI p02 的 🔴**：绑定缺失属实，但因命令路由回请求方，
 **跨 gNB 断连效果不成立**（类比 Open5GS T02 的诚实订正）。
 
+## chain-initue-release — InitialUE(TMSI) → Release（2026-07-31）◑
+
+命令：`chain-initue-release`；脚本：`verify_chain_initue_then_release.sh oai`；  
+证据：`pcap/chain_oai_initue_then_release/`。
+
+实测（受害 AU=6，TMSI=`4e4f2ed4`；当时仍可用较短 NAS，OAI 亦回 DL）：
+1. **H0** 单独 Release(AU=6) → Command（proc 41）回攻击者，受害 DN ping **0%**。
+2. **InitialUE** → DL `DownlinkNASTransport` **AU=7 RU=99**（新 AU 暴露；常为 Service Reject）。
+3. Release(6) → Complete：`No UE NGAP context … 6`（ID 已迁）。
+4. Release(7) → Complete：`Removed … amf_ue_ngap_id 7`（清攻击者腿；**old context** 分支 **不拆** 受害 PDU）。
+5. 受害 DN **仍通** — Command 未打到合法 gNB。
+
+与 Open5GS 完整 SR 对照：两者都能用 DL 学新 AU；Open5GS 改绑更「脏」（Holding + Idle 扰动），
+OAI 侧重 ID 记账 + Command 回弹。均 **非** SD-Core/p09 式跨 gNB 断连。
+
 ## T04 — NG Reset（g01）— 版本相关（复测订正）
 
 **复测**（用精确受害 AMF-UE-NGAP-ID + 仅 AMF-UE-ID 的「脆弱路径」变体 `--targets <V>`）：
@@ -112,6 +127,7 @@ free5GC 的头号密钥泄露在 OAI 上**无攻击面**（"未实现 ≠ 安全
 | Path Switch 密钥泄露 | ⚪ 未实现（无此面）|
 | 远程 AMF 崩溃 DoS | 🟢 无（NG Reset 不崩溃）|
 | 跨 gNB 单 UE 释放（UE Context Release）| ◑ 无绑定查找存在，但命令路由回请求方 → **受害未断连** |
+| InitUE→Release 链（`chain-initue-release`）| ◑ DL 学新 AU + Release(learned) 清攻击者腿；Command→请求方；**受害 PDU 仍通** |
 | 跨 gNB 单 UE 释放（**Handover Notify p09**）| 🔴 ✅ **Release Command 发往受害真实 gNB → RRC 释放** |
 | SON/Xn 盲中继 | ⚪ 解析但不中继 |
 | 假 TAI 寻呼 | ◑ 解析、未见生效 |

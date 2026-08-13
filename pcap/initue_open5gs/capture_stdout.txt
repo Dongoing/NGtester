@@ -1,0 +1,19 @@
+[1;36m[cap][0m === initue_open5gs ===
+[1;36m[cap][0m capturing amf on o5gs-amf -> amf_ngap_nas_sbi.pcap
+[1;36m[cap][0m capturing smf on o5gs-smf -> smf_sbi_pfcp.pcap
+[1;36m[cap][0m capturing gnb on ueransim-open5gs-ueransim-gnb-1 -> legit_gnb_n2_n3.pcap
+[1;36m[cap][0m firing attack: initial-ue --ran-ue-id 99 --amf-set-id 1 --amf-pointer 0 --tmsi c000061a
+    [SCTP] connected to AMF 172.30.0.10:38412
+    [NG Setup] successfulOutcome/proc=21 NGSetupResponse  -> ACCEPTED
+    [initial-ue] ran-ue-id=99 5G-S-TMSI set=0x1 ptr=0x0 tmsi=c000061a nas=default
+    [initial-ue] reply: initiatingMessage/proc=4 DownlinkNASTransport
+    [evidence] appended to /evidence/attack.jsonl
+[1;36m[cap][0m attack sent; capturing AMF follow-on for 15s ...
+[1;36m[cap][0m captured files:
+    10281 bytes  pcap/initue_open5gs/amf_ngap_nas_sbi.pcap
+    12988 bytes  pcap/initue_open5gs/legit_gnb_n2_n3.pcap
+    3280 bytes  pcap/initue_open5gs/reg.pcap
+    3236 bytes  pcap/initue_open5gs/reg2.pcap
+    6957 bytes  pcap/initue_open5gs/smf_sbi_pfcp.pcap
+[1;36m[cap][0m AMF pcap NGAP procedureCodes: 14 15 21 24 4 41 46   (21=NGSetup,25=PathSwitch,41=UECtxtRel,20=NGReset,9=ErrInd,12=HOReqd,48=ULRANCfg)
+[1;36m[cap][0m done: pcap/initue_open5gs

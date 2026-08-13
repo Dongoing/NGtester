@@ -1,0 +1,21 @@
+{"attack": "chain-initue-release", "step": "initial-ue", "ran_ue_id": 99, "amf_set_id": 1, "amf_pointer": 0, "tmsi": "c0000207", "victim_amf_ue_id": 2, "nas_hex": "7e004c110007030040c000020740020100", "nas_integrity": false}
+{"attack": "chain-initue-release", "step": "dl-after-initue", "message": "DownlinkNASTransport", "amf_ue_ngap_id": 3, "ran_ue_ngap_id": 99, "nas": {"message": "ServiceReject", "gmm_cause": 95, "gmm_cause_name": "Semantically incorrect message", "raw_hex": "7e004d5f"}}
+{"attack": "chain-initue-release", "step": "ue-release", "target": "victim", "amf_ue_ngap_id": 2, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "release-command", "target": "victim", "result": null}
+{"attack": "chain-initue-release", "step": "ue-release", "target": "learned", "amf_ue_ngap_id": 3, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "release-command", "target": "learned", "result": "UEContextReleaseCommand", "message": "UEContextReleaseCommand", "amf_ue_ngap_id": 3, "ran_ue_ngap_id": 99}
+{"attack": "chain-initue-release", "step": "release-complete", "target": "learned", "amf_ue_ngap_id": 3, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "initial-ue", "ran_ue_id": 99, "amf_set_id": 1, "amf_pointer": 0, "tmsi": "c0000646", "victim_amf_ue_id": 5, "nas_hex": "7e004c110007030040c0000646", "nas_integrity": false}
+{"attack": "chain-initue-release", "step": "dl-after-initue", "message": "DownlinkNASTransport", "amf_ue_ngap_id": 6, "ran_ue_ngap_id": 99, "nas": {"message": "ServiceReject", "gmm_cause": 9, "gmm_cause_name": "UE identity cannot be derived by the network", "raw_hex": "7e004d09"}}
+{"attack": "chain-initue-release", "step": "ue-release", "target": "victim", "amf_ue_ngap_id": 5, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "release-command", "target": "victim", "result": null}
+{"attack": "chain-initue-release", "step": "ue-release", "target": "learned", "amf_ue_ngap_id": 6, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "release-command", "target": "learned", "result": "UEContextReleaseCommand", "message": "UEContextReleaseCommand", "amf_ue_ngap_id": 6, "ran_ue_ngap_id": 99}
+{"attack": "chain-initue-release", "step": "release-complete", "target": "learned", "amf_ue_ngap_id": 6, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "initial-ue", "ran_ue_id": 99, "amf_set_id": 1, "amf_pointer": 0, "tmsi": "c0000314", "victim_amf_ue_id": 8, "nas_hex": "7e004c110007030040c0000314", "nas_integrity": false}
+{"attack": "chain-initue-release", "step": "dl-after-initue", "message": "DownlinkNASTransport", "amf_ue_ngap_id": 9, "ran_ue_ngap_id": 99, "nas": {"message": "ServiceReject", "gmm_cause": 9, "gmm_cause_name": "UE identity cannot be derived by the network", "raw_hex": "7e004d09"}}
+{"attack": "chain-initue-release", "step": "ue-release", "target": "victim", "amf_ue_ngap_id": 8, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "release-command", "target": "victim", "result": null}
+{"attack": "chain-initue-release", "step": "ue-release", "target": "learned", "amf_ue_ngap_id": 9, "ran_ue_id": 99, "pdu_sessions": [1]}
+{"attack": "chain-initue-release", "step": "release-command", "target": "learned", "result": "UEContextReleaseCommand", "message": "UEContextReleaseCommand", "amf_ue_ngap_id": 9, "ran_ue_ngap_id": 99}
+{"attack": "chain-initue-release", "step": "release-complete", "target": "learned", "amf_ue_ngap_id": 9, "ran_ue_id": 99, "pdu_sessions": [1]}
