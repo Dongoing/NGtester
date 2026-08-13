@@ -1,0 +1,64 @@
+# 5g-lab: OAI gNB (RFsim 射频仿真) + OAI NR-UE（可插拔挂接任意核心网）
+# 用法（在 ran/ 目录下）:
+#   docker compose -f oai-gnb.yaml --env-file env/open5gs.env up -d
+#   docker compose -f oai-gnb.yaml --env-file env/oai.env up -d
+name: oairan-${CORE_NAME}
+services:
+  oai-gnb:
+    image: oaisoftwarealliance/oai-gnb:2025.w46
+    entrypoint: ["/bin/bash", "/mnt/oai/gnb-init.sh"]
+    stdin_open: true
+    tty: true
+    privileged: true
+    volumes:
+      - ./oai:/mnt/oai
+    environment:
+      - CORE_AMF_ADDR=${CORE_AMF_ADDR}
+      - MCC=${MCC}
+      - MNC=${MNC}
+      - TAC=${TAC}
+      - SLICE_SST=${SLICE_SST:-1}
+      - SLICE_SD=${SLICE_SD:-}
+      - ASAN_OPTIONS=detect_leaks=0
+    expose:
+      - "38412/sctp"
+      - "2152/udp"
+      - "4043/tcp"
+    healthcheck:
+      test: /bin/bash -c "pgrep nr-softmodem"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - core
+  oai-nr-ue:
+    image: oaisoftwarealliance/oai-nr-ue:2025.w46
+    entrypoint: ["/bin/bash", "/mnt/oai/nr-ue-init.sh"]
+    depends_on:
+      - oai-gnb
+    stdin_open: true
+    tty: true
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - ./oai:/mnt/oai
+    environment:
+      - GNB_HOST=oai-gnb
+      - APN=${APN:-internet}
+      - SLICE_SST=${SLICE_SST:-1}
+      - SLICE_SD=${SLICE_SD:-}
+      - UE1_IMSI=${UE1_IMSI}
+      - UE1_KI=${UE1_KI}
+      - UE1_OP=${UE1_OP}
+      - UE1_OPC=${UE1_OPC:-}
+      - ASAN_OPTIONS=detect_leaks=0
+    networks:
+      - core
+networks:
+  core:
+    external: true
+    name: ${CORE_NETWORK}

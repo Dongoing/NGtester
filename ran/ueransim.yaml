@@ -1,0 +1,65 @@
+# 5g-lab: UERANSIM 模拟 gNB + UE（可插拔挂接任意核心网）
+# 用法（在 ran/ 目录下）:
+#   docker compose -f ueransim.yaml --env-file env/open5gs.env up -d
+#   docker compose -f ueransim.yaml --env-file env/free5gc.env up -d
+#   ...（换 env 文件即换核心网）
+name: ueransim-${CORE_NAME}
+services:
+  ueransim-gnb:
+    image: docker_ueransim
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./ueransim:/mnt/ueransim
+    environment:
+      - COMPONENT_NAME=ueransim-gnb
+      - CORE_AMF_ADDR=${CORE_AMF_ADDR}
+      - MCC=${MCC}
+      - MNC=${MNC}
+      - TAC=${TAC}
+      - SLICE_SST=${SLICE_SST:-1}
+      - SLICE_SD=${SLICE_SD:-}
+      - EXTRA_ROUTES=${EXTRA_ROUTES:-}
+    expose:
+      - "38412/sctp"
+      - "2152/udp"
+      - "4997/udp"
+    cap_add:
+      - NET_ADMIN
+    privileged: true
+    networks:
+      - core
+  ueransim-ue:
+    image: docker_ueransim
+    depends_on:
+      - ueransim-gnb
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./ueransim:/mnt/ueransim
+    environment:
+      - COMPONENT_NAME=ueransim-ue
+      - GNB_HOST=ueransim-gnb
+      - MCC=${MCC}
+      - MNC=${MNC}
+      - APN=${APN:-internet}
+      - SLICE_SST=${SLICE_SST:-1}
+      - SLICE_SD=${SLICE_SD:-}
+      - UE1_IMSI=${UE1_IMSI}
+      - UE1_KI=${UE1_KI}
+      - UE1_OP=${UE1_OP}
+      - UE1_OP_TYPE=${UE1_OP_TYPE:-OPC}
+      - UE1_AMF=${UE1_AMF:-8000}
+      - UE1_IMEI=${UE1_IMEI:-356938035643803}
+      - UE1_IMEISV=${UE1_IMEISV:-4370816125816151}
+    devices:
+      - /dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    privileged: true
+    networks:
+      - core
+networks:
+  core:
+    external: true
+    name: ${CORE_NETWORK}

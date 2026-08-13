@@ -1,0 +1,64 @@
+# 5g-lab: srsRAN Project gNB (ZMQ 射频仿真) + srsUE (srsRAN_4G 的 5G UE)
+# 用法（在 ran/ 目录下）:
+#   docker compose -f srsran-gnb.yaml --env-file env/open5gs.env up -d
+#   docker compose -f srsran-gnb.yaml --env-file env/oai.env up -d
+# 说明: gNB/UE 需静态 IP（ZMQ 端口互指），各核心网 env 里已预留 .180/.181
+name: srsran-${CORE_NAME}
+services:
+  srsran-gnb:
+    image: docker_srsran
+    stdin_open: true
+    tty: true
+    privileged: true
+    volumes:
+      - ./srsran:/mnt/srsran
+    environment:
+      - COMPONENT_NAME=gnb_zmq
+      - AMF_IP=${CORE_AMF_ADDR}
+      - MCC=${MCC}
+      - MNC=${MNC}
+      - TAC=${TAC}
+      - SRS_GNB_IP=${SRS_GNB_IP}
+      - SRS_UE_IP=${SRS_UE_IP}
+    expose:
+      - "38412/sctp"
+      - "2152/udp"
+      - "2000/tcp"
+      - "2001/tcp"
+    networks:
+      core:
+        ipv4_address: ${SRS_GNB_IP}
+  srsran-ue:
+    image: docker_srslte
+    depends_on:
+      - srsran-gnb
+    stdin_open: true
+    tty: true
+    privileged: true
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun
+    volumes:
+      - ./srslte:/mnt/srslte
+    environment:
+      - COMPONENT_NAME=${SRS_UE_COMPONENT:-ue_5g_zmq}
+      - MCC=${MCC}
+      - MNC=${MNC}
+      - TAC=${TAC}
+      - SRS_GNB_IP=${SRS_GNB_IP}
+      - SRS_UE_IP=${SRS_UE_IP}
+      - SRS_ENB_IP=${SRS_GNB_IP}
+      - UE1_IMSI=${UE1_IMSI}
+      - UE1_KI=${UE1_KI}
+      - UE1_OP=${UE1_OP}
+    expose:
+      - "2000/tcp"
+      - "2001/tcp"
+    networks:
+      core:
+        ipv4_address: ${SRS_UE_IP}
+networks:
+  core:
+    external: true
+    name: ${CORE_NETWORK}

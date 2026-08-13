@@ -1,0 +1,22 @@
+# === 运行时日志（容器通过 bind mount 写入，docker 会自动重建目录）===
+*.log
+cores/*/log/
+
+# === 大二进制工具：不进 git（helm.exe ~56MB 超 GitHub 警告线；测试机联网时按
+#     INSTALL.md §4 自行下载。仅 SD-Core 需要 kind/helm）===
+tools/*.exe
+tools/kind
+tools/helm
+tools/*.zip
+
+# === 离线打包 / 临时产物 ===
+dist/
+*.tmp
+*.bak
+
+# === 操作系统 / 编辑器 ===
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

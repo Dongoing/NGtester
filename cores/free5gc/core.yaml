@@ -1,0 +1,273 @@
+# 5g-lab: free5GC 5G SA 核心网（UPF 使用 eUPF/eBPF —— WSL2 无 gtp5g 内核模块）
+# 用法: docker compose -f core.yaml up -d
+# 基站接入: 网络 net-free5gc, AMF N2 = 172.30.20.10:38412/SCTP
+# PLMN 208/93(free5gc 默认), TAC 1, 切片 sst=1 sd=010203, DNN internet (UE 池 10.60.0.0/16)
+# 订阅管理: WebUI http://localhost:5000 (admin/free5gc)
+services:
+  eupf:
+    container_name: f5gc-eupf
+    image: ghcr.io/edgecomllc/eupf:latest
+    environment:
+      - UPF_INTERFACE_NAME=eth0
+      - UPF_XDP_ATTACH_MODE=generic
+      - UPF_API_ADDRESS=:8081
+      - UPF_PFCP_ADDRESS=:8805
+      - UPF_METRICS_ADDRESS=:9091
+      - UPF_PFCP_NODE_ID=172.30.20.11
+      - UPF_N3_ADDRESS=172.30.20.11
+    ulimits:
+      memlock: -1
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
+    privileged: true
+    sysctls:
+      - net.ipv4.conf.all.forwarding=1
+    expose:
+      - "2152/udp"
+      - "8805/udp"
+    networks:
+      privnet:
+        ipv4_address: 172.30.20.11
+        aliases:
+          - upf.free5gc.org
+
+  # 在 Docker VM 根网络命名空间添加 UE 池回程路由 + NAT
+  eupf-routes:
+    container_name: f5gc-eupf-routes
+    image: alpine:3.20
+    network_mode: host
+    privileged: true
+    depends_on:
+      - eupf
+    command: >
+      sh -c "
+      apk add --no-cache iptables >/dev/null &&
+      ip route replace 10.60.0.0/16 via 172.30.20.11 &&
+      (iptables -t nat -C POSTROUTING -s 10.60.0.0/16 -j MASQUERADE 2>/dev/null ||
+       iptables -t nat -A POSTROUTING -s 10.60.0.0/16 -j MASQUERADE) &&
+      echo ROUTES_OK && sleep infinity"
+
+  db:
+    container_name: f5gc-mongodb
+    image: mongo:4.4
+    command: mongod --port 27017
+    expose:
+      - "27017"
+    volumes:
+      - f5gc_dbdata:/data/db
+    networks:
+      privnet:
+        ipv4_address: 172.30.20.2
+        aliases:
+          - db
+
+  nrf:
+    container_name: f5gc-nrf
+    image: free5gc/nrf:v4.2.3
+    command: ./nrf -c ./config/nrfcfg.yaml
+    expose:
+      - "8000"
+    volumes:
+      - ./config/nrfcfg.yaml:/free5gc/config/nrfcfg.yaml
+      - ./cert:/free5gc/cert
+    environment:
+      DB_URI: mongodb://db/free5gc
+      GIN_MODE: release
+    networks:
+      privnet:
+        ipv4_address: 172.30.20.4
+        aliases:
+          - nrf.free5gc.org
+    depends_on:
+      - db
+
+  amf:
+    container_name: f5gc-amf
+    image: free5gc/amf:v4.2.3
+    command: ./amf -c ./config/amfcfg.yaml
+    expose:
+      - "8000"
+    volumes:
+      - ./config/amfcfg.yaml:/free5gc/config/amfcfg.yaml
+      - ./cert:/free5gc/cert
+    environment:
+      GIN_MODE: release
+    networks:
+      privnet:
+        ipv4_address: 172.30.0.10
+        aliases:
+          - amf.free5gc.org
+    depends_on:
+      - nrf
+
+  ausf:
+    container_name: f5gc-ausf
+    image: free5gc/ausf:v4.2.3
+    command: ./ausf -c ./config/ausfcfg.yaml
+    expose:
+      - "8000"
+    volumes:
+      - ./config/ausfcfg.yaml:/free5gc/config/ausfcfg.yaml
+      - ./cert:/free5gc/cert
+    environment:
+      GIN_MODE: release
+    networks:
+      privnet:
+        ipv4_address: 172.30.20.6
+        aliases:
+          - ausf.free5gc.org
+    depends_on:
+      - nrf
+
+  nssf:
+    container_name: f5gc-nssf
+    image: free5gc/nssf:v4.2.3
+    command: ./nssf -c ./config/nssfcfg.yaml
+    expose:
+      - "8000"
+    volumes:
+      - ./config/nssfcfg.yaml:/free5gc/config/nssfcfg.yaml
+      - ./cert:/free5gc/cert
+    environment:
+      GIN_MODE: release
+    networks:
+      privnet:
+        ipv4_address: 172.30.20.14
+        aliases:
+          - nssf.free5gc.org
+    depends_on:
+      - nrf
+
+  pcf:
+    container_name: f5gc-pcf
+    image: free5gc/pcf:v4.2.3
+    command: ./pcf -c ./config/pcfcfg.yaml
+    expose:
+      - "8000"
+    volumes:
+      - ./config/pcfcfg.yaml:/free5gc/config/pcfcfg.yaml
+      - ./cert:/free5gc/cert
+    environment:
+      GIN_MODE: release
+    networks:
+      privnet:
+        ipv4_address: 172.30.20.12
+        aliases:
+          - pcf.free5gc.org
+    depends_on:
+      - nrf
+
+  smf:
+    container_name: f5gc-smf
+    image: free5gc/smf:v4.2.3
+    command: ./smf -c ./config/smfcfg.yaml -u ./config/uerouting.yaml
+    expose:
+      - "8000"
+    volumes:
+      - ./config/smfcfg.yaml:/free5gc/config/smfcfg.yaml
+      - ./config/uerouting.yaml:/free5gc/config/uerouting.yaml
+      - ./cert:/free5gc/cert
+    environment:
+      GIN_MODE: release
+    networks:
+      privnet:
+        ipv4_address: 172.30.20.9
+        aliases:
+          - smf.free5gc.org
+    depends_on:
+      - nrf
+      - eupf
+
+  udm:
+    container_name: f5gc-udm
+    image: free5gc/udm:v4.2.3
+    command: ./udm -c ./config/udmcfg.yaml
+    expose:
+      - "8000"
+    volumes:
+      - ./config/udmcfg.yaml:/free5gc/config/udmcfg.yaml
+      - ./cert:/free5gc/cert
+    environment:
+      GIN_MODE: release
+    networks:
+      privnet:
+        ipv4_address: 172.30.20.8
+        aliases:
+          - udm.free5gc.org
+    depends_on:
+      - db
+      - nrf
+
+  udr:
+    container_name: f5gc-udr
+    image: free5gc/udr:v4.2.3
+    command: ./udr -c ./config/udrcfg.yaml
+    expose:
+      - "8000"
+    volumes:
+      - ./config/udrcfg.yaml:/free5gc/config/udrcfg.yaml
+      - ./cert:/free5gc/cert
+    environment:
+      DB_URI: mongodb://db/free5gc
+      GIN_MODE: release
+    networks:
+      privnet:
+        ipv4_address: 172.30.20.7
+        aliases:
+          - udr.free5gc.org
+    depends_on:
+      - db
+      - nrf
+
+  chf:
+    container_name: f5gc-chf
+    image: free5gc/chf:v4.2.3
+    command: ./chf -c ./config/chfcfg.yaml
+    expose:
+      - "8000"
+    volumes:
+      - ./config/chfcfg.yaml:/free5gc/config/chfcfg.yaml
+      - ./cert:/free5gc/cert
+    environment:
+      DB_URI: mongodb://db/free5gc
+      GIN_MODE: release
+    networks:
+      privnet:
+        ipv4_address: 172.30.20.13
+        aliases:
+          - chf.free5gc.org
+    depends_on:
+      - db
+      - nrf
+      - webui
+
+  webui:
+    container_name: f5gc-webui
+    image: free5gc/webui:v4.2.3
+    command: ./webui -c ./config/webuicfg.yaml
+    expose:
+      - "2121"
+    volumes:
+      - ./config/webuicfg.yaml:/free5gc/config/webuicfg.yaml
+    environment:
+      - GIN_MODE=release
+    networks:
+      privnet:
+        ipv4_address: 172.30.20.3
+        aliases:
+          - webui
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+      - nrf
+
+networks:
+  privnet:
+    external: true
+    name: net-5glab
+
+volumes:
+  f5gc_dbdata:
+    name: f5gc_dbdata

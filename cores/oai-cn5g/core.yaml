@@ -1,0 +1,144 @@
+# 5g-lab: OAI CN5G 核心网（basic-nrf 场景改造）
+# 用法: docker compose -f core.yaml up -d
+# 基站接入: 网络 net-oai, AMF N2 = 172.30.30.10:38412/SCTP
+# PLMN 001/01, TAC 1, 切片 sst=1, DNN internet (UE 池 10.53.0.0/24)
+services:
+    mysql:
+        container_name: "oai-mysql"
+        image: mysql:9.6.0
+        volumes:
+            - ./database/oai_db.sql:/docker-entrypoint-initdb.d/oai_db.sql
+            - ./healthscripts/mysql-healthcheck.sh:/tmp/mysql-healthcheck.sh
+        environment:
+            - MYSQL_DATABASE=oai_db
+            - MYSQL_USER=test
+            - MYSQL_PASSWORD=test
+            - MYSQL_ROOT_PASSWORD=linux
+        healthcheck:
+            test: /bin/bash -c "/tmp/mysql-healthcheck.sh"
+            interval: 10s
+            timeout: 5s
+            retries: 30
+        networks:
+            public_net:
+                ipv4_address: 172.30.30.2
+    oai-udr:
+        container_name: "oai-udr"
+        image: oaisoftwarealliance/oai-udr:develop
+        expose:
+            - 80/tcp
+            - 8080/tcp
+        volumes:
+            - ./conf/config.yaml:/openair-udr/etc/config.yaml
+        depends_on:
+            - mysql
+            - oai-nrf
+        networks:
+            public_net:
+                ipv4_address: 172.30.30.7
+    oai-udm:
+        container_name: "oai-udm"
+        image: oaisoftwarealliance/oai-udm:develop
+        expose:
+            - 80/tcp
+            - 8080/tcp
+        volumes:
+            - ./conf/config.yaml:/openair-udm/etc/config.yaml
+        depends_on:
+            - oai-nrf
+        networks:
+            public_net:
+                ipv4_address: 172.30.30.8
+    oai-ausf:
+        container_name: "oai-ausf"
+        image: oaisoftwarealliance/oai-ausf:develop
+        expose:
+            - 80/tcp
+            - 8080/tcp
+        volumes:
+            - ./conf/config.yaml:/openair-ausf/etc/config.yaml
+        depends_on:
+            - oai-nrf
+        networks:
+            public_net:
+                ipv4_address: 172.30.30.6
+    oai-nrf:
+        container_name: "oai-nrf"
+        image: oaisoftwarealliance/oai-nrf:develop
+        expose:
+            - 80/tcp
+            - 8080/tcp
+        volumes:
+            - ./conf/config.yaml:/openair-nrf/etc/config.yaml
+        networks:
+            public_net:
+                ipv4_address: 172.30.30.4
+    oai-amf:
+        container_name: "oai-amf"
+        image: oaisoftwarealliance/oai-amf:develop
+        expose:
+            - 80/tcp
+            - 8080/tcp
+            - 38412/sctp
+        volumes:
+            - ./conf/config.yaml:/openair-amf/etc/config.yaml
+        depends_on:
+            - oai-nrf
+        networks:
+            public_net:
+                ipv4_address: 172.30.0.10
+    oai-smf:
+        container_name: "oai-smf"
+        image: oaisoftwarealliance/oai-smf:develop
+        expose:
+            - 80/tcp
+            - 8080/tcp
+            - 8805/udp
+        volumes:
+            - ./conf/config.yaml:/openair-smf/etc/config.yaml
+        depends_on:
+            - oai-nrf
+        networks:
+            public_net:
+                ipv4_address: 172.30.30.9
+    oai-upf:
+        container_name: "oai-upf"
+        image: oaisoftwarealliance/oai-upf:develop
+        expose:
+            - 2152/udp
+            - 8805/udp
+        volumes:
+            - ./conf/config.yaml:/openair-upf/etc/config.yaml
+        depends_on:
+            - oai-nrf
+        cap_add:
+            - NET_ADMIN
+            - SYS_ADMIN
+        cap_drop:
+            - ALL
+        privileged: true
+        networks:
+            public_net:
+                ipv4_address: 172.30.30.11
+    oai-ext-dn:
+        privileged: true
+        init: true
+        container_name: oai-ext-dn
+        image: oaisoftwarealliance/trf-gen-cn5g:latest
+        environment:
+            - UPF_FQDN=oai-upf
+            - UE_NETWORK=10.53.0.0/24
+            - USE_FQDN=yes
+        healthcheck:
+            test: /bin/bash -c "ip r | grep 10.53.0"
+            interval: 10s
+            timeout: 5s
+            retries: 5
+        networks:
+            public_net:
+                ipv4_address: 172.30.30.3
+
+networks:
+    public_net:
+        external: true
+        name: net-5glab
