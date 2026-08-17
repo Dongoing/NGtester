@@ -83,13 +83,13 @@ UERANSIM_DIR="${UERANSIM_DIR:-$HOME/UERANSIM}"
 [[ -x "$UERANSIM_DIR/build/nr-gnb" ]] && pass "nr-gnb" || fail "没有 $UERANSIM_DIR/build/nr-gnb"
 [[ -x "$UERANSIM_DIR/build/nr-cli" ]] && pass "nr-cli" || warn "没有 nr-cli，读 AU 只能抓包"
 
-echo "==== SCTP 占用（华为一源 IP 可能只允一条）===="
+echo "==== SCTP 关联（华为允许多条，UERANSIM 占着一条是正常的）===="
 if [[ -r /proc/net/sctp/assocs ]]; then
   if grep -q 14.66.2.5 /proc/net/sctp/assocs 2>/dev/null; then
-    warn "已有到 14.66.2.5 的 SCTP（多半是 UERANSIM）。ngt sctp-ping 若 timeout，先停 run-gnb.sh 验证"
+    pass "已有到 14.66.2.5 的 SCTP（合法 gNB 在跑，可同时开 ngap_tester）"
     grep 14.66.2.5 /proc/net/sctp/assocs || true
   else
-    pass "当前没有到 AMF 的 SCTP 关联"
+    warn "当前没有到 AMF 的 SCTP（合法 gNB 可能还没起来）"
   fi
 fi
 

@@ -125,9 +125,9 @@ cd ~/ngap_tester          # 按实际路径
 # 成功: NG Setup ACCEPTED
 ```
 
-`sctp-ping` timeout 时：确认 `huawei.json` 的 `bind_ip` 是 `13.254.241.142`；
-仍超时就**先停 UERANSIM gNB** 再 ping 一次——华为可能一源 IP 只允一条 SCTP，
-那时要给本机加第二个 IP 给 ngap_tester，并让华为把该 IP + gNB 4660 入白名单。
+`sctp-ping` timeout 时：确认 `huawei.json` 的 `bind_ip` 是 `13.254.241.142`（和 UERANSIM
+同一源 IP）。华为**允许多条 SCTP**，不必停合法 gNB。仍超时就抓包看 INIT 有没有 INIT-ACK，
+以及本机是否真有这张地址：`ip -4 addr | grep 13.254.241.142`。
 
 ---
 
@@ -347,7 +347,7 @@ $NGT --evidence evidence/huawei-path-switch.jsonl path-switch --source-amf-ue-id
 
 | 现象 | 处理 |
 |---|---|
-| `sctp-ping` timeout，UERANSIM 却通 | `huawei.json` 的 `bind_ip` 必须是 `13.254.241.142`。仍超时：先停 `run-gnb.sh` 再 ping——华为一源 IP 可能只允一条 SCTP。若停掉就通，给本机加第二个 IP 给 ngap_tester，并让华为把该 IP+gNB 4660 入白名单 |
+| `sctp-ping` timeout，UERANSIM 却通 | `huawei.json` 的 `bind_ip` 必须是 `13.254.241.142`。华为允许多条 SCTP，不用停合法 gNB。查本机是否有该地址、抓包看 INIT 有无 INIT-ACK |
 | `ng-setup` REJECT | PLMN/TAC/切片/gNB 4660 / 源 IP 未在华为侧开通 |
 | UE 认证失败 | IMSI/KI/OPc/PLMN 与开户不一致；首次 SQN re-sync 属正常 |
 | 攻击「没反应」 | AU 已过期，或填成了 1 / 扫出来的假 ID。重新 `extract-ue-ids.sh` |
