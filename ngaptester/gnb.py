@@ -11,7 +11,8 @@ class FakeGNB:
     def __init__(self, cfg: dict):
         self.cfg = cfg
         self.conn = SctpNgap(cfg["amf_addr"], int(cfg.get("amf_port", 38412)),
-                             cfg.get("bind_ip"))
+                             cfg.get("bind_ip"),
+                             timeout=float(cfg.get("timeout", 15.0)))
 
     def connect(self):
         self.conn.connect()

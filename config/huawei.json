@@ -1,16 +1,16 @@
 {
-  "_comment": "Real Huawei AMF. Every field below (except ran_node_name/nci) MUST match what the Huawei AMF has provisioned for this gNB, or NG Setup is REJECTED. Confirm mcc/mnc/tac/sst/sd/gnb_id with the AMF operator BEFORE running. The AMF also usually whitelists the gNB source IP: run 'sctp-ping' to see which source IP the AMF sees, and have that IP provisioned.",
-  "amf_addr": "14.55.2.5",
+  "_comment": "Huawei AMF (现场已开户). PLMN/TAC/NSSAI/bind_ip 必须与合法 UERANSIM 一致；gnb_id 必须不同且已被华为允许。AMF-UE-NGAP-ID 每次随机，禁止 sweep 枚举，从合法 gNB 的 NGAP 里读。",
+  "amf_addr": "14.66.2.5",
   "amf_port": 38412,
-  "mcc": "001",
-  "mnc": "01",
+  "mcc": "460",
+  "mnc": "08",
   "tac": 1,
   "sst": 1,
-  "sd": "010203",
+  "sd": "010101",
   "gnb_id": 4660,
   "gnb_id_len": 32,
   "nci": 17,
   "ran_node_name": "ngap-tester",
-  "bind_ip": null,
-  "timeout": 5.0
+  "bind_ip": "13.254.241.142",
+  "timeout": 15.0
 }

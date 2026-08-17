@@ -15,12 +15,30 @@ except ImportError:  # pragma: no cover
 NGAP_PPID = 60
 
 
+def detect_src_ip(dst_ip: str, dst_port: int = 38412) -> str | None:
+    """Source IPv4 the kernel would use to reach dst (UDP trick; no packets sent)."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect((dst_ip, dst_port))
+        return s.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        s.close()
+
+
 class SctpNgap:
     def __init__(self, dst_ip: str, dst_port: int = 38412, bind_ip: str | None = None,
                  timeout: float = 5.0):
         if sctp is None:
             raise RuntimeError("pysctp not available — run inside the docker image")
         self.dst = (dst_ip, dst_port)
+        # Unbound Linux SCTP INITs advertise *all* local addresses (multi-homing).
+        # Commercial AMFs (Huawei) often drop that. UERANSIM binds a single ngapIp
+        # — do the same: explicit bind_ip, or the route's source IP.
+        if bind_ip in (None, "", "auto", "null"):
+            bind_ip = detect_src_ip(dst_ip, dst_port)
+        self.bind_ip = bind_ip
         self.sk = sctp.sctpsocket_tcp(socket.AF_INET)
         if bind_ip:
             self.sk.bind((bind_ip, 0))

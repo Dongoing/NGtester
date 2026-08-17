@@ -437,7 +437,9 @@ def cmd_sctp_ping(cfg):
     print(f"[sctp-ping] opening SCTP association to AMF {dst}:{port} "
           f"(bind_ip={cfg.get('bind_ip') or 'auto'}) ...")
     conn = SctpNgap(dst, port, cfg.get("bind_ip"),
-                    timeout=float(cfg.get("timeout", 5.0)))
+                    timeout=float(cfg.get("timeout", 15.0)))
+    print(f"[sctp-ping] bound to {conn.bind_ip or 'unbound'} "
+          f"(timeout={conn.sk.gettimeout()}s)")
     try:
         conn.connect()
     except Exception as e:

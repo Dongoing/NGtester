@@ -6,8 +6,8 @@
 # 用法:
 #   ./deploy/ngt.sh sctp-ping
 #   ./deploy/ngt.sh ng-setup
-#   ./deploy/ngt.sh sweep --attack ue-release --amf-range 1-2000
-#   ./deploy/ngt.sh path-switch --source-amf-ue-id <victim>
+#   ./deploy/ngt.sh path-switch --source-amf-ue-id <本次从合法NGAP读到的AU>
+#   华为 AU 每次随机，不要 sweep。见 操作手册_华为AMF.md
 # ------------------------------------------------------------------------------
 set -euo pipefail
 

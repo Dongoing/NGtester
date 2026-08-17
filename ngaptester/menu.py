@@ -57,22 +57,31 @@ def ask_int(prompt, default=None):
 
 
 def ask_amf_ue_id(gnb):
-    """Prompt for a victim AMF-UE-NGAP-ID; accept a number, or `sweep` to
-    enumerate live victims (small-id stacks only)."""
-    raw = input("  victim AMF-UE-NGAP-ID (number, or 'sweep' to discover): ").strip()
+    """Prompt for a victim AMF-UE-NGAP-ID.
+
+    Huawei assigns a new random id every registration — never sweep, never
+    reuse a previous number. Lab cores with small sequential ids may sweep.
+    """
+    huawei = str(gnb.cfg.get("amf_addr", "")).startswith("14.66") or str(gnb.cfg.get("mcc")) == "460"
+    hint = "华为每次随机，填 extract-ue-ids 刚读到的数字，不要 sweep" if huawei \
+        else "number, or 'sweep' to discover"
+    raw = input(f"  victim AMF-UE-NGAP-ID ({hint}): ").strip()
     if raw.lower() == "sweep":
+        if huawei:
+            print("    华为 AU 随机，sweep 无效。先跑 ./deploy/extract-ue-ids.sh")
+            return ask_int("victim AMF-UE-NGAP-ID")
         lo = ask_int("sweep from", 1)
         hi = ask_int("sweep to", 32)
         hits = _discover(gnb, lo, hi)
         if not hits:
             print("    (no live victims found in range; type an id manually)")
-            return ask_int("victim AMF-UE-NGAP-ID", 1)
+            return ask_int("victim AMF-UE-NGAP-ID")
         print(f"    live victims: {hits}")
         return ask_int("pick AMF-UE-NGAP-ID", hits[0])
     try:
         return int(raw, 0)
     except Exception:
-        return ask_int("victim AMF-UE-NGAP-ID", 1)
+        return ask_int("victim AMF-UE-NGAP-ID")
 
 
 def _discover(gnb, lo, hi):
