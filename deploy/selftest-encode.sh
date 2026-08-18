@@ -15,7 +15,7 @@ echo "==== encode/decode every field attack (no SCTP) ===="
 "$PY" "$REPO/validate_builders.py"
 echo
 echo "==== CLI 子命令能解析 ===="
-"$PY" -m ngaptester.cli --help >/dev/null
+"$PY" -m ngaptester.cli --config config/huawei.json --help >/dev/null
 for cmd in sctp-ping ng-setup path-switch ue-release error-indication ng-reset \
            handover-required ho-window-inject ran-config-update \
            ul-ran-config-transfer initial-ue chain-ps-release \

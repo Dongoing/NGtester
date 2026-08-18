@@ -24,7 +24,8 @@ done
 for f in "$HERE/ngt.sh" "$HERE/real-amf/run-gnb.sh" "$HERE/real-amf/run-ue.sh" \
          "$HERE/extract-ue-ids.sh" "$HERE/bootstrap.sh" \
          "$HERE/selftest-encode.sh" "$HERE/real-amf/capture-n2.sh" \
-         "$HERE/real-amf/decode-n2.sh" "$HERE/real-amf/observe.sh"; do
+         "$HERE/real-amf/decode-n2.sh" "$HERE/real-amf/decode-n3.sh" \
+         "$HERE/real-amf/observe.sh"; do
   [[ -x "$f" ]] || warn "$(basename "$f") 不可执行，跑: chmod +x deploy/*.sh deploy/real-amf/*.sh"
 done
 

@@ -85,19 +85,30 @@ try_nrcli() {
 
 try_guti() {
   [[ -x "$CLI" ]] || { echo "[extract] 没有 $CLI"; return 1; }
-  local nodes ue
+  local nodes ue info
+  # run-ue.sh 是 sudo 起的：普通用户的 nr-cli --dump 常常看不到 imsi- 节点
+  echo "[extract] nr-cli --dump（当前用户）"
   nodes="$("$CLI" --dump 2>/dev/null || true)"
-  echo "[extract] nr-cli --dump"
   echo "$nodes"
   ue="$(printf '%s\n' "$nodes" | grep -E "^imsi-${UE1_IMSI}$|^imsi-" | head -1 || true)"
   if [[ -z "$ue" ]]; then
-    echo "[extract] dump 里没有 UE 节点。终端 B 的 run-ue.sh 必须在跑。"
+    echo "[extract] 当前用户看不到 UE。run-ue.sh 用了 sudo，改问 root 的 nr-cli"
+    echo "[extract] sudo nr-cli --dump"
+    nodes="$(sudo "$CLI" --dump 2>/dev/null || true)"
+    echo "$nodes"
+    ue="$(printf '%s\n' "$nodes" | grep -E "^imsi-${UE1_IMSI}$|^imsi-" | head -1 || true)"
+  fi
+  if [[ -z "$ue" ]]; then
+    echo "[extract] dump 里没有 UE 节点。看终端 B 是否还在，或抓注册 N2。"
     return 1
   fi
   echo
   echo "[extract] nr-cli $ue --exec info"
-  local info
   info="$("$CLI" "$ue" --exec "info" 2>/dev/null || true)"
+  if [[ -z "$info" ]]; then
+    echo "[extract] 普通用户 info 空，再 sudo 一次"
+    info="$(sudo "$CLI" "$ue" --exec "info" 2>/dev/null || true)"
+  fi
   echo "$info"
   echo
   echo "========================================"

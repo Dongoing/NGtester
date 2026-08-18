@@ -160,3 +160,4 @@ except Exception as e:
     print(f"[ERR] huawei-field-encode         {type(e).__name__}: {e}")
 
 print("\nALL OK" if ok else "\nSOME FAILED")
+raise SystemExit(0 if ok else 1)

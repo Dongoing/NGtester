@@ -71,7 +71,14 @@ def run_sink(bind_ip: str = "0.0.0.0", port: int = GTPU_PORT,
 
     sk = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sk.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sk.bind((bind_ip, port))
+    try:
+        sk.bind((bind_ip, port))
+    except OSError as e:
+        out(f"[gtpu-sink] bind {bind_ip}:{port} failed: {e}")
+        out("  同机合法 nr-gnb 已经占用这张地址的 UDP 2152，sink 起不来。")
+        out("  不要开 sink。改用: sudo ./deploy/real-amf/capture-n3.sh <名>")
+        out("  在 pcap 里找 TEID 0x11111111（手册里 path-switch / HO 用的 teid）。")
+        raise SystemExit(2)
     sk.settimeout(1.0)
     out(f"[gtpu-sink] listening on {bind_ip}:{port} "
         f"(duration={'inf' if duration is None else duration}s) - "

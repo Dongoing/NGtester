@@ -5,7 +5,14 @@
 # ------------------------------------------------------------------------------
 set -euo pipefail
 
-PCAP="${1:?用法: $0 <n2.pcap>}"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+REPO="$(cd "$HERE/../.." && pwd)"
+PCAP="${1:-}"
+if [[ -z "$PCAP" ]]; then
+  PCAP="$(ls -t "$REPO"/evidence/n2-*.pcap 2>/dev/null | head -1 || true)"
+  [[ -n "$PCAP" ]] || { echo "用法: $0 <n2.pcap>   或先抓一条" >&2; exit 1; }
+  echo "用最新: $PCAP"
+fi
 command -v tshark >/dev/null 2>&1 || { echo "需要 tshark: sudo apt-get install -y tshark" >&2; exit 1; }
 
 cat <<'EOF'

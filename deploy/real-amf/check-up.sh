@@ -89,7 +89,8 @@ if [[ "${1:-}" == "--n3" ]]; then
   echo
   echo "==== 5) N3 GTP-U（UDP 2152，合法 gNB 的 $HOST_IP）===="
   echo "  另开终端对 $TUN 打 ping/流量，这里应看到 2152。"
-  echo "  Path Switch 成功切面后：这里变少/消失，gtpu-sink 上出现。"
+  echo "  Path Switch 成功切面后：旧 TEID 变少，pcap 里出现 TEID 0x11111111。"
+  echo "  同机不要开 gtpu-sink（和 nr-gnb 抢 2152）。"
   if ! command -v tcpdump >/dev/null; then
     echo "  需要: sudo apt-get install -y tcpdump"
     exit 0
