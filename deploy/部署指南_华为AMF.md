@@ -86,7 +86,7 @@ bootstrap 会：检查内核 SCTP → 装依赖(build 工具/libsctp/python venv
 | PLMN(MCC/MNC) | `460` / `08` | |
 | TAC | `1` | |
 | S-NSSAI(SST/SD) | `1` / `010101` | |
-| DNN | `internet` | |
+| DNN | `huawei.com` | |
 | AMF N2 | `14.66.2.5:38412` | |
 | 本机源 IP | `13.254.241.142` | |
 
