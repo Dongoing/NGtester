@@ -22,7 +22,9 @@ for f in "$REPO/config/huawei.json" "$HERE/ngt.sh" "$HERE/real-amf/run-gnb.sh" \
   [[ -e "$f" ]] && pass "$(basename "$f")" || fail "缺 $f"
 done
 for f in "$HERE/ngt.sh" "$HERE/real-amf/run-gnb.sh" "$HERE/real-amf/run-ue.sh" \
-         "$HERE/extract-ue-ids.sh" "$HERE/bootstrap.sh"; do
+         "$HERE/extract-ue-ids.sh" "$HERE/bootstrap.sh" \
+         "$HERE/selftest-encode.sh" "$HERE/real-amf/capture-n2.sh" \
+         "$HERE/real-amf/decode-n2.sh" "$HERE/real-amf/observe.sh"; do
   [[ -x "$f" ]] || warn "$(basename "$f") 不可执行，跑: chmod +x deploy/*.sh deploy/real-amf/*.sh"
 done
 
@@ -50,13 +52,11 @@ PY
 echo "==== venv / 编码 ===="
 if [[ -x "$REPO/.venv/bin/python" ]]; then
   pass "venv"
-  "$REPO/.venv/bin/python" - <<'PY' && pass "pycrate 能编华为 NG Setup" || fail "NG Setup 编码失败"
-import json
-from ngaptester import ngap, builders
-cfg=json.load(open("config/huawei.json", encoding="utf-8"))
-b=ngap.encode(builders.ng_setup_request(cfg))
-print(f"       NG Setup {len(b)} bytes")
-PY
+  if "$REPO/.venv/bin/python" "$REPO/validate_builders.py"; then
+    pass "全部攻击报文能编码（validate_builders.py）"
+  else
+    fail "有报文编码失败，先看 validate_builders.py 输出，不要打那条"
+  fi
   "$REPO/.venv/bin/python" -c "import sctp" 2>/dev/null && pass "pysctp 可 import" || warn "pysctp 不可 import（必须在 Linux 上跑 ngt.sh）"
 else
   fail "没有 .venv，先 ./deploy/bootstrap.sh"
@@ -96,4 +96,4 @@ fi
 echo
 echo "结果: $ok 通过, $bad 失败"
 [[ "$bad" -eq 0 ]] || exit 1
-echo "下一步: 见 deploy/操作手册_华为AMF.md 第一节「现场只做这些」"
+echo "下一步: 见 deploy/操作手册_华为AMF.md （黑盒观察 + 按编号一条一条打）"

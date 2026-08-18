@@ -12,6 +12,7 @@
 #
 # 用法（ngap_tester/ 下，gNB+UE 已注册）:
 #   ./deploy/extract-ue-ids.sh
+#   ./deploy/extract-ue-ids.sh --guti           # 再尽量拆 5G-S-TMSI（InitialUE 用）
 #   ./deploy/extract-ue-ids.sh --watch          # 先开抓再重启 UE
 #   ./deploy/extract-ue-ids.sh -r /tmp/n2.pcap
 # ------------------------------------------------------------------------------
@@ -82,6 +83,38 @@ try_nrcli() {
   print_au "$out"
 }
 
+try_guti() {
+  [[ -x "$CLI" ]] || { echo "[extract] 没有 $CLI"; return 1; }
+  local nodes ue
+  nodes="$("$CLI" --dump 2>/dev/null || true)"
+  echo "[extract] nr-cli --dump"
+  echo "$nodes"
+  ue="$(printf '%s\n' "$nodes" | grep -E "^imsi-${UE1_IMSI}$|^imsi-" | head -1 || true)"
+  if [[ -z "$ue" ]]; then
+    echo "[extract] dump 里没有 UE 节点。终端 B 的 run-ue.sh 必须在跑。"
+    return 1
+  fi
+  echo
+  echo "[extract] nr-cli $ue --exec info"
+  local info
+  info="$("$CLI" "$ue" --exec "info" 2>/dev/null || true)"
+  echo "$info"
+  echo
+  echo "========================================"
+  echo "  在上面找 GUTI / 5G-S-TMSI / TMSI / AMF-Set / AMF-Pointer"
+  echo "  填 InitialUE / chain-initue-release："
+  echo "    --amf-set-id 0x<10bit>  --amf-pointer 0x<6bit>  --tmsi <8hex>"
+  echo "  终端 B（nr-ue）日志里搜 GUTI 往往更全。"
+  echo "  或注册时抓 N2：sudo ./deploy/real-amf/capture-n2.sh guti"
+  echo "  再 ./deploy/real-amf/decode-n2.sh evidence/n2-guti-*.pcap"
+  echo "========================================"
+  if [[ -z "$info" ]]; then
+    echo "[extract] info 空。看终端 B 日志，或抓注册过程的 N2。"
+    return 1
+  fi
+  return 0
+}
+
 dump_pcap() {
   command -v tshark >/dev/null 2>&1 || { echo "需要: sudo apt-get install -y tshark" >&2; exit 1; }
   tshark -r "$1" -Y ngap "${FIELDS[@]}"
@@ -107,6 +140,12 @@ case "${1:-}" in
   -r)
     dump_pcap "${2:?用法: $0 -r file.pcap}"
     ;;
+  --guti)
+    try_guti || true
+    echo
+    echo "[extract] 同时再读一次 AU（InitialUE 链也要用）:"
+    try_nrcli || true
+    ;;
   --watch)
     live_tshark
     ;;
@@ -125,7 +164,7 @@ case "${1:-}" in
     if [[ "$1" =~ ^[0-9]+$ ]]; then
       live_tshark "$1"
     else
-      echo "未知参数: $1  （无参数 | --watch | -r pcap）" >&2
+      echo "未知参数: $1  （无参数 | --guti | --watch | -r pcap）" >&2
       exit 2
     fi
     ;;
