@@ -119,7 +119,17 @@ $NGT chain-initue-release --amf-set-id 0x<setid> --amf-pointer 0x<ptr> --tmsi <8
 #              出现网卡 uesimtun0
 ```
 
-可选：`ping -I uesimtun0 <华为给的地址>` 确认数据面。
+内网**不要 ping 8.8.8.8**。UE 分到地址后：
+
+```bash
+./deploy/real-amf/check-up.sh          # 看 uesimtun0 的 IP、网关、ps-list，并 ping 网关
+./deploy/real-amf/check-up.sh --n3     # 再抓 8 秒合法 gNB 上的 GTP-U(UDP 2152)
+# 华为若给了 DNN 内网地址：
+PING_TARGET=<内网地址> ./deploy/real-amf/check-up.sh
+```
+
+有 UE_IP = PDU 会话已建。网关/PING_TARGET 有回包 = N6 通。`--n3` 能看到 2152 = UPF↔gNB 在传。
+Path Switch 后：合法侧 N3 应变少，`gtpu-sink` 上应出现包。
 
 ### 1.2 流氓侧先探路
 
