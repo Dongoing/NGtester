@@ -1,7 +1,7 @@
 # real-amf —— UERANSIM 合法 gNB+UE，连华为 AMF
 
 现场参数已写入 `real-amf.env`（PLMN 460/08，AMF `14.66.2.5`，绑定 `13.254.241.142`）。
-**完整操作（含随机 AU 怎么读、全部攻击命令）见 `../操作手册_华为AMF.md`。**
+**完整操作见 `../操作手册_华为AMF.md`。这次只做 Path Switch。**
 
 ```
 测试机 Ubuntu

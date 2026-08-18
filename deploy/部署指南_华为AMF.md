@@ -1,6 +1,6 @@
 # 对接华为 AMF 部署指南（装环境）
 
-> **现场怎么打、随机 AU 怎么读、全部攻击命令：见 [`操作手册_华为AMF.md`](操作手册_华为AMF.md)。**
+> **现场怎么打：见 [`操作手册_华为AMF.md`](操作手册_华为AMF.md)。这次只做 Path Switch，其它攻击先不要跑。**
 > 当前现场：AMF `14.66.2.5`，绑定 `13.254.241.142`，PLMN `460/08`。
 
 面向对象：一台**能联网**的 Win11 测试主机（已装 WSL2），直连华为 AMF。目标是从 GitHub
@@ -97,19 +97,20 @@ bootstrap 会：检查内核 SCTP → 装依赖(build 工具/libsctp/python venv
 
 ./deploy/real-amf/run-gnb.sh             # 终端 A：NG Setup
 ./deploy/real-amf/run-ue.sh              # 终端 B：认证 + 注册 + 建会话
-ping -I uesimtun0 8.8.8.8                # 可选：验证数据面
+./deploy/real-amf/check-up.sh            # 内网数据面；不要 ping 8.8.8.8
 ```
 看到 `Registration is successful` 即华为 AMF 上已有一个真实注册的受害 UE。
 
 ## 7. 流氓 gNB（ngap_tester）攻击
 
-华为 AMF-UE-NGAP-ID **每次随机**，不要 sweep。读 ID 和全部攻击命令见
-[`操作手册_华为AMF.md`](操作手册_华为AMF.md)。
+华为 AMF-UE-NGAP-ID **每次随机**，不要 sweep。**这次只打 Path Switch**，逐步命令见
+[`操作手册_华为AMF.md`](操作手册_华为AMF.md) 文首。
 
 ```bash
+./deploy/extract-ue-ids.sh          # 不要 sudo；抄 amf-ngap-id
+./deploy/ngt.sh sctp-ping
 ./deploy/ngt.sh ng-setup
-sudo ./deploy/extract-ue-ids.sh 30
-./deploy/ngt.sh path-switch --source-amf-ue-id <本次AU>
+./deploy/ngt.sh path-switch --source-amf-ue-id <本次AU> --pdu-sessions 1
 ```
 
 ---

