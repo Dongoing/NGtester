@@ -18,11 +18,11 @@ chmod +x deploy/*.sh deploy/real-amf/*.sh
 ./deploy/real-amf/run-gnb.sh
 # 终端 B
 ./deploy/real-amf/run-ue.sh
-# 终端 D（UE 保持注册）
+# 终端 D（gNB+UE 保持注册）
 ./deploy/extract-ue-ids.sh
-#   记下 amfUeNgapId = AU
-#   若 nr-cli 没问到：先 sudo ./deploy/extract-ue-ids.sh --watch
-#   再去终端 B 重启 run-ue.sh，从抓包里抄 AMF_UE_NGAP_ID
+#   抄 amf-ngap-id = AU
+#   这是问 gNB 的 ue-list，不是问 UE 的 info
+#   若失败：sudo ./deploy/extract-ue-ids.sh --watch 后再重启 run-ue.sh
 
 # 终端 C
 ./deploy/ngt.sh sctp-ping
@@ -135,11 +135,18 @@ cd ~/ngap_tester          # 按实际路径
 
 华为 AU 随机，**每次 UE 重新注册都会变**。打完若 UE 重注册了，必须重读。
 
-### 办法 A（推荐）：nr-cli，UE 正在跑时
+### 办法 A（推荐）：问 gNB 的 ue-list
+
+AU 在 **gNB** 上，不在 UE 的 `info` 里。脚本会跑：
+
+```text
+nr-cli --dump
+nr-cli UERANSIM-gnb-460-08-1 --exec "ue-list"
+# amf-ngap-id: <这就是 AU>
+```
 
 ```bash
 ./deploy/extract-ue-ids.sh
-# 在输出里找 amfUeNgapId / AMF-UE-NGAP-ID
 ```
 
 ### 办法 A2：抓包（必须在注册过程中抓）
@@ -157,7 +164,13 @@ sudo ./deploy/extract-ue-ids.sh -r /tmp/n2.pcap
 
 ### 办法 B：读 UERANSIM 日志
 
-终端 A（nr-gnb）搜 `AMF-UE-NGAP-ID` / `amfUeNgapId`。
+终端 A 默认日志往往不打印 AU。GUTI 看终端 B（nr-ue）。手动能跑：
+
+```bash
+~/UERANSIM/build/nr-cli --dump
+~/UERANSIM/build/nr-cli UERANSIM-gnb-460-08-1 --exec "ue-list"
+```
+
 终端 B（nr-ue）搜 `GUTI` / `5G-S-TMSI` / `TMSI`，拆出：
 
 | 字段 | 给谁 |
