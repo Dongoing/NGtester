@@ -117,7 +117,7 @@ try_guti() {
   echo "    --amf-set-id 0x<10bit>  --amf-pointer 0x<6bit>  --tmsi <8hex>"
   echo "  终端 B（nr-ue）日志里搜 GUTI 往往更全。"
   echo "  或注册时抓 N2：sudo ./deploy/real-amf/capture-n2.sh guti"
-  echo "  再 ./deploy/real-amf/decode-n2.sh evidence/n2-guti-*.pcap"
+  echo "  再 ./deploy/real-amf/decode-n2.sh"
   echo "========================================"
   if [[ -z "$info" ]]; then
     echo "[extract] info 空。看终端 B 日志，或抓注册过程的 N2。"
