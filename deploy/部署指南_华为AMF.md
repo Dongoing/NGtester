@@ -1,6 +1,6 @@
 # 对接华为 AMF 部署指南（装环境）
 
-> **现场怎么打：见 [`操作手册_华为AMF.md`](操作手册_华为AMF.md)。这次只做 Path Switch，其它攻击先不要跑。**
+> **现场怎么打：见 [`操作手册_华为AMF.md`](操作手册_华为AMF.md)。按编号一个一个做；现在做攻击 2（UE Release）。**
 > 当前现场：AMF `14.66.2.5`，绑定 `13.254.241.142`，PLMN `460/08`。
 
 面向对象：一台**能联网**的 Win11 测试主机（已装 WSL2），直连华为 AMF。目标是从 GitHub
@@ -103,14 +103,14 @@ bootstrap 会：检查内核 SCTP → 装依赖(build 工具/libsctp/python venv
 
 ## 7. 流氓 gNB（ngap_tester）攻击
 
-华为 AMF-UE-NGAP-ID **每次随机**，不要 sweep。**这次只打 Path Switch**，逐步命令见
-[`操作手册_华为AMF.md`](操作手册_华为AMF.md) 文首。
+华为 AMF-UE-NGAP-ID **每次随机**，不要 sweep。按编号一个一个做，逐步命令见
+[`操作手册_华为AMF.md`](操作手册_华为AMF.md)。**现在做攻击 2**，必须用新注册的 AU：
 
 ```bash
 ./deploy/extract-ue-ids.sh          # 不要 sudo；抄 amf-ngap-id
 ./deploy/ngt.sh sctp-ping
 ./deploy/ngt.sh ng-setup
-./deploy/ngt.sh path-switch --source-amf-ue-id <本次AU> --pdu-sessions 1
+./deploy/ngt.sh ue-release --amf-ue-id <本次AU>
 ```
 
 ---

@@ -98,6 +98,10 @@ def cmd_ue_release(gnb, a):
     r = gnb.send(B.ue_context_release_request(a.amf_ue_id, a.ran_ue_id))
     print(f"[ue-release] amf={a.amf_ue_id} ran={a.ran_ue_id} -> "
           f"{ngap.summarize(r) if r else '(no reply to us)'}")
+    _save(a.evidence, {"attack": "ue-release",
+                       "amf_ue_id": a.amf_ue_id,
+                       "ran_ue_id": a.ran_ue_id,
+                       "result": ngap.message_type(r) if r else None})
 
 
 def cmd_error_indication(gnb, a):
