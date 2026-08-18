@@ -9,8 +9,14 @@
 
 ## 现场只做这些（抄这一页就够打主线）
 
+所有命令都在**仓库根目录**跑（这个目录里同时有 `deploy/`、`config/`、`ngaptester/`）。
+克隆下来可能叫 `NGtester`、`ngap_tester` 或别的，不要死记 `~/ngap_tester`。
+
 ```bash
-cd ~/ngap_tester          # 按实际路径
+# 先确认你在根目录：下面这个文件必须存在
+ls deploy/extract-ue-ids.sh config/huawei.json
+# 不在的话：  cd 到 git clone 出来的那个目录
+
 chmod +x deploy/*.sh deploy/real-amf/*.sh
 ./deploy/field-check.sh   # 全绿再往下；红了先看报错，不要硬打
 
@@ -97,13 +103,13 @@ $NGT chain-initue-release --amf-set-id 0x<setid> --amf-pointer 0x<ptr> --tmsi <8
 终端 A  ./deploy/real-amf/run-gnb.sh      # 合法 gNB，保持开着
 终端 B  ./deploy/real-amf/run-ue.sh       # 合法 UE，保持开着
 终端 C  ./deploy/ngt.sh …                 # 流氓 gNB，一条命令一次关联
-终端 D  sudo ./deploy/extract-ue-ids.sh   # 可选：抓本次随机 AU / TMSI
+终端 D  ./deploy/extract-ue-ids.sh        # 读本次 AU（不要 sudo；抓包才 sudo --watch）
 ```
 
 ### 1.1 合法侧（若还没在跑）
 
 ```bash
-cd ~/ngap_tester          # 按实际路径
+# 仍在仓库根目录（能 ls 到 deploy/ 和 config/）
 ./deploy/real-amf/run-gnb.sh
 # 终端 A 看到: NG Setup procedure is successful
 
