@@ -331,6 +331,8 @@ sudo ./deploy/real-amf/capture-n2.sh handover-required
     handover-required --amf-ue-id <AU>
 ```
 
+`--ran-ue-id` 默认 **1**，不要加。不要改 `--target-gnb-id`，不要改 gNB-ID 4660。
+
 **黑盒看什么**
 
 | 路 | AMF 接受了跨 gNB HO | 挡住 |
