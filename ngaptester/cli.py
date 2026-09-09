@@ -900,7 +900,7 @@ def main():
     s = sub.add_parser("handover-required")
     s.add_argument("--amf-ue-id", type=int, required=True)
     s.add_argument("--ran-ue-id", type=int, default=1)
-    s.add_argument("--target-gnb-id", type=lambda x: int(x, 0), default=0xABCDE)
+    s.add_argument("--target-gnb-id", type=lambda x: int(x, 0), default=0)
 
     s = sub.add_parser("ho-window-inject")
     s.add_argument("--amf-ue-id", type=int, required=True,

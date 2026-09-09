@@ -320,7 +320,7 @@ A/B/observe:
 
 ## 攻击 4：Handover Required
 
-流氓替受害 UE 发 `HandoverRequired`，目标写成**不存在的** gNB `0xABCDE`（默认）。看 AMF 会不会对别人的上下文开切换。
+流氓替受害 UE 发 `HandoverRequired`，目标写成**不存在的** gNB `0`（默认）。看 AMF 会不会对别人的上下文开切换。
 
 **前提：** 新会话。不要改 `--target-gnb-id`（这条就是「指向假目标」）。指向自己是攻击 5。
 
@@ -331,7 +331,7 @@ sudo ./deploy/real-amf/capture-n2.sh handover-required
     handover-required --amf-ue-id <AU>
 ```
 
-`--ran-ue-id` 默认 **1**，不要加。不要改 `--target-gnb-id`，不要改 gNB-ID 4660。
+`--ran-ue-id` 默认 **1**，`--target-gnb-id` 默认 **0**，都不要加。不要改 gNB-ID 4660。
 
 **黑盒看什么**
 
