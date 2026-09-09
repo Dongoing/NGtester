@@ -130,6 +130,8 @@ def _self_test_huawei_field():
             123456, 99, cfg, target_gnb_id=int(cfg["gnb_id"])),
         "HORequired(huawei fake)": B.handover_required(
             123456, 99, cfg, target_gnb_id=0xABCDE),
+        "HORequired(huawei gnb0/22)": B.handover_required(
+            123456, 1, cfg, target_gnb_id=0, target_gnb_id_len=22),
         "InitUE(huawei)": B.initial_ue_message(
             99, cfg, amf_set_id=1, amf_pointer=0, tmsi="c0000001"),
         "RANCfgUpd(huawei)": B.ran_configuration_update(cfg, tac=int(cfg["tac"])),
