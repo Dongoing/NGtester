@@ -176,8 +176,14 @@ def p_ran_config_update(gnb):
 
 def p_ul_ran_config_transfer(gnb):
     tgt = ask_int("target gNB-id to inject SON toward", 0x1)
-    gnb.send(B.uplink_ran_configuration_transfer(gnb.cfg, target_gnb_id=tgt), wait=False)
-    print("  sent (AMF should blind-relay Downlink RAN Config Transfer to target)")
+    default_ip = gnb.cfg.get("xn_ip") or gnb.cfg.get("bind_ip") or "auto"
+    xn_ip = ask("source Xn IP (this tester, gNB 4660)", str(default_ip))
+    if xn_ip in ("", "auto"):
+        xn_ip = default_ip if default_ip != "auto" else None
+    gnb.send(B.uplink_ran_configuration_transfer(
+        gnb.cfg, target_gnb_id=tgt, xn_ip=xn_ip), wait=False)
+    print(f"  sent source={gnb.cfg.get('gnb_id')} xn-ip={xn_ip or gnb.cfg.get('bind_ip')} "
+          f"(AMF should relay DL RAN Config Transfer; target may Xn-Setup here)")
 
 
 def p_gtpu_sink(gnb):

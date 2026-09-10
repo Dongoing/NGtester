@@ -144,6 +144,32 @@ except Exception as e:
     ok = False
     print(f"[ERR] ho-transparent-containers   {type(e).__name__}: {e}")
 
+
+def _self_test_xn_tnl():
+    """SON Request xn-TNL-configuration-info SHALL carry source Xn TNL."""
+    ip = "13.254.241.142"
+    val = B.uplink_ran_configuration_transfer(
+        CFG, target_gnb_id=1, xn_ip=ip)
+    pdu = ngap.decode(ngap.encode(val))
+    son = ngap.get_ies(pdu)[99][1]
+    assert son["sONInformation"] == ("sONInformationRequest",
+                                     "xn-TNL-configuration-info"), son
+    tnl = son["xnTNLConfigurationInfo"]
+    got = tnl["xnTransportLayerAddresses"][0]
+    assert got == B.ip_to_bits(ip), got
+    ext = tnl["xnExtendedTransportLayerAddresses"][0]
+    assert ext["gTP-TLAs"][0] == B.ip_to_bits(ip), ext
+    sctp = ext["iE-Extensions"][0]
+    assert sctp["id"] == 173 and sctp["extensionValue"][0] == "SCTP-TLAs", sctp
+    print(f"[OK]  son-xn-tnl                   source Xn {ip}")
+
+
+try:
+    _self_test_xn_tnl()
+except Exception as e:
+    ok = False
+    print(f"[ERR] son-xn-tnl                   {type(e).__name__}: {e}")
+
 def _self_test_huawei_field():
     """Same builders, field config (huawei.json). Catches PLMN/SD/bind-shaped bugs."""
     import json
