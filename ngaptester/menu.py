@@ -181,10 +181,11 @@ def p_ul_ran_config_transfer(gnb):
     if xn_ip in ("", "auto"):
         xn_ip = default_ip if default_ip != "auto" else None
     gnb.send(B.uplink_ran_configuration_transfer(
-        gnb.cfg, target_gnb_id=tgt, xn_ip=xn_ip, source_gnb_id_len=22), wait=False)
-    print(f"  sent source={gnb.cfg.get('gnb_id')}/22bit "
+        gnb.cfg, target_gnb_id=tgt, xn_ip=xn_ip, source_gnb_id_len=22,
+        son="reply"), wait=False)
+    print(f"  sent SON Reply source={gnb.cfg.get('gnb_id')}/22bit "
           f"xn-ip={xn_ip or gnb.cfg.get('bind_ip')} "
-          f"(AMF should relay DL RAN Config Transfer; target may Xn-Setup here)")
+          f"(AMF relays DL RAN Config Transfer; target may Xn-Setup here)")
 
 
 def p_gtpu_sink(gnb):
