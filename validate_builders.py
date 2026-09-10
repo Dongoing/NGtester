@@ -146,14 +146,15 @@ except Exception as e:
 
 
 def _self_test_xn_tnl():
-    """Default SON Reply carries source Xn TNL (TS 38.413 8.8.2.2)."""
+    """Default SON Request asks for Xn TNL and carries our own source TNL."""
     ip = "13.254.241.142"
     val = B.uplink_ran_configuration_transfer(
         CFG, target_gnb_id=1, xn_ip=ip)
     pdu = ngap.decode(ngap.encode(val))
     son = ngap.get_ies(pdu)[99][1]
-    assert son["sONInformation"][0] == "sONInformationReply", son
-    tnl = son["sONInformation"][1]["xnTNLConfigurationInfo"]
+    assert son["sONInformation"] == ("sONInformationRequest",
+                                     "xn-TNL-configuration-info"), son
+    tnl = son["xnTNLConfigurationInfo"]
     got = tnl["xnTransportLayerAddresses"][0]
     assert got == B.ip_to_bits(ip), got
     ext = tnl["xnExtendedTransportLayerAddresses"][0]
