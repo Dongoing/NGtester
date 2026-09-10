@@ -769,8 +769,9 @@ def uplink_ran_configuration_transfer(cfg: dict, *, target_gnb_id: int,
     if source_gnb_id is None:
         source_gnb_id = int(cfg.get("gnb_id", 4660))
     tgt_len = int(target_gnb_id_len if target_gnb_id_len is not None else 32)
-    src_len = int(source_gnb_id_len if source_gnb_id_len is not None
-                  else cfg.get("gnb_id_len", 32))
+    # Huawei NRT is 22-bit. NG Setup stays 32-bit 4660; only the SON
+    # sourceRANNodeID advertised to the peer uses 22 unless overridden.
+    src_len = int(source_gnb_id_len if source_gnb_id_len is not None else 22)
     son = {
         "targetRANNodeID-SON": {
             "globalRANNodeID": _global_gnb_id(cfg, target_gnb_id, gnb_id_len=tgt_len),
