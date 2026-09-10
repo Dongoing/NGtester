@@ -433,7 +433,7 @@ N2：35 下行；有无 24:
 
 **前提：** 合法 gNB 必须在。不要 AU。
 
-TargetID 位长默认 **22**（商用站）。指向 UERANSIM gNB 1 时要显式 `--target-gnb-id-len 32`。不要改 `huawei.json`，源仍是 32-bit 4660。
+Target / Source 在 SON 容器里位长默认都是 **22**（源数值仍是 4660）。不要改 `huawei.json` 的 `gnb_id_len`：流氓 **NG Setup 仍是 32-bit 4660**。指向 UERANSIM gNB 1 时加 `--target-gnb-id-len 32`。
 
 ```bash
 sudo ./deploy/real-amf/capture-n2.sh son-gnb0

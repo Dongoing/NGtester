@@ -716,7 +716,8 @@ def ran_configuration_update(cfg: dict, *, tac=None, ran_node_name: str = "ngap-
 
 def uplink_ran_configuration_transfer(cfg: dict, *, target_gnb_id: int,
                                       source_gnb_id: int | None = None, tac=None,
-                                      target_gnb_id_len: int | None = None):
+                                      target_gnb_id_len: int | None = None,
+                                      source_gnb_id_len: int | None = None):
     """UPLINK RAN CONFIGURATION TRANSFER (Class 2, procedureCode 48). Open5GS g09.
 
     Blind relay: the AMF forwards the carried SONConfigurationTransfer to the
@@ -730,12 +731,14 @@ def uplink_ran_configuration_transfer(cfg: dict, *, target_gnb_id: int,
     if source_gnb_id is None:
         source_gnb_id = int(cfg.get("gnb_id", 4660))
     tgt_len = int(target_gnb_id_len if target_gnb_id_len is not None else 32)
+    src_len = int(source_gnb_id_len if source_gnb_id_len is not None else 32)
     son = {
         "targetRANNodeID-SON": {
             "globalRANNodeID": _global_gnb_id(cfg, target_gnb_id, gnb_id_len=tgt_len),
             "selectedTAI": tai},
-        "sourceRANNodeID": {"globalRANNodeID": _global_gnb_id(cfg, source_gnb_id),
-                            "selectedTAI": tai},
+        "sourceRANNodeID": {
+            "globalRANNodeID": _global_gnb_id(cfg, source_gnb_id, gnb_id_len=src_len),
+            "selectedTAI": tai},
         "sONInformation": ("sONInformationRequest", "xn-TNL-configuration-info"),
     }
     ies = [

