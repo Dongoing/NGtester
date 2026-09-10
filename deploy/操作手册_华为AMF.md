@@ -439,6 +439,16 @@ sudo ./deploy/real-amf/capture-n2.sh son
     ul-ran-config-transfer --target-gnb-id 1
 ```
 
+指向商用测试站 0 时必须带 **22 bit**（默认 32 是给 UERANSIM gNB 1 的）。不要改 `huawei.json`，源仍是 32-bit 4660：
+
+```bash
+sudo ./deploy/real-amf/capture-n2.sh son-gnb0
+./deploy/ngt.sh --evidence evidence/huawei-son-gnb0.jsonl \
+    ul-ran-config-transfer --target-gnb-id 0 --target-gnb-id-len 22
+```
+
+终端 A 看不到发给商用站的 47，要在 **AMF 侧 pcap** 看有没有 proc **47** 打到 gNB 0 那条 SCTP。C 发出去就退出仍是正常。
+
 **黑盒看什么**
 
 | 路 | 盲中继成立 | 丢掉 |

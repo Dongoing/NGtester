@@ -137,6 +137,8 @@ def _self_test_huawei_field():
         "RANCfgUpd(huawei)": B.ran_configuration_update(cfg, tac=int(cfg["tac"])),
         "SON(huawei->gnb1)": B.uplink_ran_configuration_transfer(
             cfg, target_gnb_id=1),
+        "SON(huawei->gnb0/22)": B.uplink_ran_configuration_transfer(
+            cfg, target_gnb_id=0, target_gnb_id_len=22),
         "HONotify(huawei)": B.handover_notify(123456, 99, cfg),
         "PDUNotify(huawei)": B.pdu_session_resource_notify(123456, 99),
         "CellTrace(huawei)": B.cell_traffic_trace(

