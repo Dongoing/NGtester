@@ -157,10 +157,8 @@ def _self_test_xn_tnl():
     tnl = son["xnTNLConfigurationInfo"]
     got = tnl["xnTransportLayerAddresses"][0]
     assert got == B.ip_to_bits(ip), got
-    ext = tnl["xnExtendedTransportLayerAddresses"][0]
-    assert ext["gTP-TLAs"][0] == B.ip_to_bits(ip), ext
-    sctp = ext["iE-Extensions"][0]
-    assert sctp["id"] == 173 and sctp["extensionValue"][0] == "SCTP-TLAs", sctp
+    assert "xnExtendedTransportLayerAddresses" not in tnl, tnl
+    assert "iPsecTLA" not in tnl, tnl
     print(f"[OK]  son-xn-tnl                   source Xn {ip}")
 
 

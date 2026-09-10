@@ -715,26 +715,13 @@ def ran_configuration_update(cfg: dict, *, tac=None, ran_node_name: str = "ngap-
 
 
 def _xn_tnl_configuration_info(ip: str) -> dict:
-    """Source NG-RAN Xn TNL (TS 38.413 XnTNLConfigurationInfo).
+    """Source NG-RAN Xn TNL (TS 38.413 XnTNLConfigurationInfo), minimal form.
 
-    Mandatory when SON Information Request = xn-TNL-configuration-info: the
-    target uses these addresses to open Xn-C SCTP toward this node (Huawei
-    自建链). xnTransportLayerAddresses is Xn-C; the extended item repeats the
-    same IPv4 as GTP (Xn-U) and SCTP-TLAs (IE 173) so stacks that only read
-    the extension still have an address. No iPsecTLA.
+    Mandatory when SON Information Request = xn-TNL-configuration-info.
+    Only xnTransportLayerAddresses (Xn-C IPv4). iPsecTLA and
+    xnExtendedTransportLayerAddresses (GTP / SCTP-TLAs) stay absent.
     """
-    tla = ip_to_bits(ip)
-    return {
-        "xnTransportLayerAddresses": [tla],
-        "xnExtendedTransportLayerAddresses": [{
-            "gTP-TLAs": [tla],
-            "iE-Extensions": [{
-                "id": 173,
-                "criticality": "ignore",
-                "extensionValue": ("SCTP-TLAs", [tla]),
-            }],
-        }],
-    }
+    return {"xnTransportLayerAddresses": [ip_to_bits(ip)]}
 
 
 def _xn_tnl_ip(cfg: dict, xn_ip: str | None = None) -> str:
