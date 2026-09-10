@@ -433,21 +433,23 @@ N2：35 下行；有无 24:
 
 **前提：** 合法 gNB 必须在。不要 AU。
 
-```bash
-sudo ./deploy/real-amf/capture-n2.sh son
-./deploy/ngt.sh --evidence evidence/huawei-son.jsonl \
-    ul-ran-config-transfer --target-gnb-id 1
-```
-
-指向商用测试站 0 时必须带 **22 bit**（默认 32 是给 UERANSIM gNB 1 的）。不要改 `huawei.json`，源仍是 32-bit 4660：
+TargetID 位长默认 **22**（商用站）。指向 UERANSIM gNB 1 时要显式 `--target-gnb-id-len 32`。不要改 `huawei.json`，源仍是 32-bit 4660。
 
 ```bash
 sudo ./deploy/real-amf/capture-n2.sh son-gnb0
 ./deploy/ngt.sh --evidence evidence/huawei-son-gnb0.jsonl \
-    ul-ran-config-transfer --target-gnb-id 0 --target-gnb-id-len 22
+    ul-ran-config-transfer --target-gnb-id 0
 ```
 
-终端 A 看不到发给商用站的 47，要在 **AMF 侧 pcap** 看有没有 proc **47** 打到 gNB 0 那条 SCTP。C 发出去就退出仍是正常。
+打合法仿真站 1：
+
+```bash
+sudo ./deploy/real-amf/capture-n2.sh son
+./deploy/ngt.sh --evidence evidence/huawei-son.jsonl \
+    ul-ran-config-transfer --target-gnb-id 1 --target-gnb-id-len 32
+```
+
+终端 A 只能看到打到 gNB 1 的 47。打商用站 0 时要在 **AMF 侧 pcap** 看有没有 proc **47** 打到 gNB 0 那条 SCTP。C 发出去就退出仍是正常。
 
 **黑盒看什么**
 
