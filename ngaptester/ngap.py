@@ -38,6 +38,26 @@ def decode_transfer(typename: str, data: bytes):
     return t.get_val()
 
 
+def encode_rrc_uper(module: str, typename: str, val) -> bytes:
+    """UPER-encode an NR RRC type.
+
+    Transparent containers in NGAP carry RRC as UPER (TS 38.331), not APER.
+    `module` is a RRCNR submodule name, e.g. 'NR_InterNodeDefinitions'.
+    """
+    from pycrate_asn1dir import RRCNR
+    t = getattr(getattr(RRCNR, module), typename)
+    t.set_val(val)
+    return t.to_uper()
+
+
+def decode_rrc_uper(module: str, typename: str, data: bytes):
+    """UPER-decode an NR RRC type back into a value."""
+    from pycrate_asn1dir import RRCNR
+    t = getattr(getattr(RRCNR, module), typename)
+    t.from_uper(bytes(data))
+    return t.get_val()
+
+
 def summarize(val) -> str:
     """One-line human description: '<class>/<procedureCode> <MessageType>'."""
     pdu_class, body = val[0], val[1]

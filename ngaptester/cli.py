@@ -223,7 +223,8 @@ def cmd_handover_required(gnb, a):
     tgt_len = int(getattr(a, "target_gnb_id_len", 22))
     r = gnb.send(B.handover_required(a.amf_ue_id, a.ran_ue_id, gnb.cfg,
                                      target_gnb_id=a.target_gnb_id,
-                                     target_gnb_id_len=tgt_len))
+                                     target_gnb_id_len=tgt_len,
+                                     target_nci=getattr(a, "target_nci", None)))
     print(f"[handover-required] amf={a.amf_ue_id} "
           f"target-gnb={a.target_gnb_id:#x}/{tgt_len}bit -> "
           f"{ngap.summarize(r) if r else '(no reply to us)'}")
@@ -912,6 +913,10 @@ def main():
     s.add_argument("--target-gnb-id", type=lambda x: int(x, 0), default=0)
     s.add_argument("--target-gnb-id-len", type=int, default=22,
                    help="TargetID gNB-ID bit length (Huawei commercial gNB is 22)")
+    s.add_argument("--target-nci", type=lambda x: int(x, 0), default=None,
+                   help="NR Cell Identity in SourceToTarget targetCell-ID "
+                        "(default: config nci; set to the real target gNB NCI "
+                        "when that gNB looks up the cell)")
 
     s = sub.add_parser("ho-window-inject")
     s.add_argument("--amf-ue-id", type=int, required=True,

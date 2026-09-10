@@ -111,6 +111,39 @@ except Exception as e:
     ok = False
     print(f"[ERR] paging-extractor            {type(e).__name__}: {e}")
 
+
+def _self_test_ho_containers():
+    """Default HO Required / HO Request Ack transparent containers must be
+    spec-valid nested ASN.1 (OAI gNB drops a dummy 0x00 octet)."""
+    ho = ngap.decode(ngap.encode(B.handover_required(1, 99, CFG, target_gnb_id=0xABCDE)))
+    s2t = ngap.get_ies(ho)[101][1]
+    inner = ngap.decode_transfer(
+        "SourceNGRANNode_ToTargetNGRANNode_TransparentContainer", s2t)
+    assert inner["targetCell-ID"][0] == "nR-CGI", inner["targetCell-ID"]
+    assert inner["uEHistoryInformation"], inner
+    hpi = ngap.decode_rrc_uper(
+        "NR_InterNodeDefinitions", "HandoverPreparationInformation",
+        inner["rRCContainer"])
+    c1 = hpi["criticalExtensions"]
+    assert c1[0] == "c1" and c1[1][0] == "handoverPreparationInformation", hpi
+    assert c1[1][1]["ue-CapabilityRAT-List"], c1
+    ack = ngap.decode(ngap.encode(B.handover_request_acknowledge(
+        1, 99, attacker_ip="13.254.241.142")))
+    t2s = ngap.get_ies(ack)[106][1]
+    tinner = ngap.decode_transfer(
+        "TargetNGRANNode_ToSourceNGRANNode_TransparentContainer", t2s)
+    hc = ngap.decode_rrc_uper(
+        "NR_InterNodeDefinitions", "HandoverCommand", tinner["rRCContainer"])
+    assert hc["criticalExtensions"][1][0] == "handoverCommand", hc
+    print("[OK]  ho-transparent-containers   S2T HPI + T2S HandoverCommand")
+
+
+try:
+    _self_test_ho_containers()
+except Exception as e:
+    ok = False
+    print(f"[ERR] ho-transparent-containers   {type(e).__name__}: {e}")
+
 def _self_test_huawei_field():
     """Same builders, field config (huawei.json). Catches PLMN/SD/bind-shaped bugs."""
     import json

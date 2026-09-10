@@ -150,7 +150,10 @@ def p_handover_required(gnb):
     v = ask_amf_ue_id(gnb)
     ran = ask_int("RAN-UE-NGAP-ID", 99)
     tgt = ask_int("target gNB-id (attacker-named)", 0xABCDE)
-    r = gnb.send(B.handover_required(v, ran, gnb.cfg, target_gnb_id=tgt))
+    nci = ask_int("target NR Cell Identity (targetCell-ID)",
+                  int(gnb.cfg.get("nci", 0x10)))
+    r = gnb.send(B.handover_required(v, ran, gnb.cfg, target_gnb_id=tgt,
+                                     target_nci=nci))
     print(f"  -> {ngap.message_type(r) if r else '(no reply to us)'}")
 
 
