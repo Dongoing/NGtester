@@ -187,7 +187,7 @@ GUTI 也可从终端 B 日志搜 `GUTI` / `5G-S-TMSI` / `TMSI`，或从注册过
 | 3 | `error-indication` | 要 | **受害 RU** | 可能 | 新会话 |
 | 4 | `handover-required` | 要 | **受害 RU** | 可能 | 新会话 |
 | 5 | `ho-window-inject` | 要 | 流氓 **99** | 可能 | 新会话；开 N3 抓包 |
-| 6 | `ran-config-update` | 否 | — | 否 | 可复用会话 |
+| 6 | `ran-config-update` | 否 | — | 否 | 先 `--tac 2` 看假 TAI；再 `--tac 1` + UE 空闲 + 被叫看寻呼 |
 | 7 | `ul-ran-config-transfer` | 否 | — | 否 | 看终端 A |
 | 8 | `initial-ue` | GUTI | 流氓 **99**（新上下文） | 可能搅乱 | 先 `--guti` |
 | 9 | `chain-ps-release` | 要 | 流氓 **99**（与 PS 同一条） | 是 | 新会话 |
@@ -207,17 +207,15 @@ GUTI 也可从终端 B 日志搜 `GUTI` / `5G-S-TMSI` / `TMSI`，或从注册过
 
 ## 攻击 1：Path Switch
 
-流氓声称自己是新 serving，要 {NH,NCC}，并把下行 N3 指到本机。
+流氓声称自己是新 serving。华为若 ACK，会把 {NH,NCC} 给 4660，并可能改绑 / 切 N3。  
+**证明劫持看三层，不要等无线切过去。有第一层就写「控制面成立」。**
 
-**前提：** 新注册。开 N3 抓包。**不要开 gtpu-sink。**
+**前提：** 新注册。开 N3 抓包。**不要开 gtpu-sink。** `--ran-ue-id` 用默认 **99**，不要填受害 RU。
 
 ```bash
 ./deploy/real-amf/observe.sh before path-switch
-# 终端 F
 sudo ./deploy/real-amf/capture-n2.sh path-switch
-# 终端 G
 sudo ./deploy/real-amf/capture-n3.sh path-switch
-# 终端 C
 mkdir -p evidence
 ./deploy/ngt.sh --evidence evidence/huawei-path-switch.jsonl \
     path-switch --source-amf-ue-id <AU> --pdu-sessions 1 --teid 0x11111111
@@ -225,28 +223,27 @@ mkdir -p evidence
 
 `--attacker-ip` 默认用 `huawei.json` 的 `bind_ip`（`13.254.241.142`），不要改成 172.30。
 
-**黑盒看什么**
+**三层分别记（不要混成一句「成功/失败」）**
 
-| 路 | 成功 | 挡住 / 无效 |
-|---|---|---|
-| 终端 C | `CROSS-gNB DISCLOSURE CONFIRMED` + `LEAKED KEY MATERIAL: NCC=… NH=…` | `PathSwitchRequestFailure` / ErrorIndication / `no reply` |
-| 终端 C 另 | `LEAKED UPF N3 ENDPOINT`（有则抄） | 只有 `ack-transfer (no UL-TNL…)` = ACK 了但没泄 UPF |
-| N2 pcap | 上行 proc **25**，下行 `PathSwitchRequestAcknowledge` | 下行 Failure / Error / 无下行 |
-| N3 pcap | 出现 TEID `0x11111111`，旧 TEID 变少 | 只有旧 TEID |
-| `check-up.sh --n3` | 2152 还在但 TEID 变了，或 ping 断 | 和打前一样 |
-| AMF 日志 | Path Switch / gNB 4660 / 该 IMSI | 拒绝 / 无此 UE |
+| 层 | 看什么 | 成立 | 未成立 |
+|---|---|---|---|
+| 1 控制面 / 密钥 | 终端 C：`CROSS-gNB DISCLOSURE CONFIRMED`，NCC + 32 字节 NH；N2 下行 `PathSwitchRequestAcknowledge`（proc **25**） | AMF 把下一跳密钥给了 **4660** | Failure / Error / `no reply` |
+| 1b UPF 地址 | C：`LEAKED UPF N3 ENDPOINT` | ACK 里带了 UPF N3 | 只有 `ack-transfer (no UL-TNL…)` |
+| 2 上下文改绑 | 终端 A 随后 NAS / `No RAN UE Context`；或同一 AU 上攻击 9 能接着 Release | serving 已迁到流氓 SCTP | A 仍正常服务该 AU |
+| 3 用户面 | N3 pcap 出现 TEID **`0x11111111`**；UE 下行断或改道 | UPF 切了 DL | 只有旧 TEID（Open5GS 2.8 也是这样） |
 
-控制面有 NH、数据面没切：也算控制面成立（Open5GS 2.8 就是这样）。两层分开记。
+层 1 成立、层 3 没有：结论写 **泄密钥、未切面**，不要写成没劫持。把 C 整段和 `evidence/huawei-path-switch.jsonl` 留下。
 
 ```
 日期 / AU:
-C 整段（NCC/NH/N3）:
-N2：有无 ACK（proc 25 下行）:
+C 整段（有无 CROSS-gNB / NCC / NH / UPF N3）:
+N2：proc 25 下行是 ACK 还是 Failure:
 N3 有无 TEID 0x11111111:
-结论（泄密钥 / 泄 N3 / 切面 / 挡住 / 无回）:
+A 随后有无丢上下文:
+结论（泄密钥 / 泄 N3 / 改绑 / 切面 / 挡住）:
 ```
 
-做完重注册。不要在这个 AU 上接着打 2。
+做完重注册。不要在这个 AU 上接着打 2（那是攻击 9）。
 
 ---
 
@@ -402,34 +399,67 @@ N2 时间线（12/13/11/49/41）:
 
 ## 攻击 6：RAN Configuration Update（假 TAI / 寻呼）
 
-流氓再声明一遍 TAC=1。看 AMF 会不会把寻呼也扇到 4660。
+拆成两步，不要混。默认不写 `--tac` 就是再声明一遍 **TAC=1**（和 AMF、合法站一样），只能证明「同 TA 多一个 gNB」，**不是假 TAC**。  
+寻呼（proc **24**）只在 UE **CM-IDLE** 且核心网有被叫/下行时才会发。UERANSIM 一直注册着、有 tun = CONNECTED，下行走合法 gNB，**不会寻呼**。听 30 秒没有 `PAGING INTERCEPTED` 是预期，不要写成 RAN Config 失败。
 
-**前提：** 可复用会话（不拆 UE）。黑盒往往**触发不了下行寻呼**——没有寻呼也要记 ACK。
+**前提：** 可复用会话（不拆 UE）。不要 sink。
+
+### 6a：假 TAI（TAC=2）
+
+看华为接不接受流氓登记一个**自己并不广播的 TAC**。现在这台 UE 的 TAI 仍是 1，**不要**在这一步等寻呼。
 
 ```bash
-sudo ./deploy/real-amf/capture-n2.sh ran-config
-./deploy/ngt.sh --evidence evidence/huawei-ran-config.jsonl \
-    ran-config-update --listen 30
+sudo ./deploy/real-amf/capture-n2.sh ran-config-tac2
+./deploy/ngt.sh --evidence evidence/huawei-ran-config-tac2.jsonl \
+    ran-config-update --tac 2 --listen 30
 ```
 
-30 秒内若华为/核心网能给该 IMSI 推一条下行（有人配合就让他们做），你可能看到 `PAGING INTERCEPTED`。没人配合就等到超时。
-
-**黑盒看什么**
-
-| 路 | 拓扑声称被接受 | 挡住 |
+| 路 | 假 TAI 被接受 | 挡住 |
 |---|---|---|
-| 终端 C | 打印 `RANConfigurationUpdateAcknowledge` 一类 ACK | Failure / 无 ack |
-| 终端 C 30s | `[PAGING INTERCEPTED] 5G-S-TMSI=…` | 无 Paging（黑盒常见） |
-| N2 pcap | 上行 proc **35**，下行 ACK；若有寻呼则 proc **24** 打到流氓 SCTP | Failure |
-| 终端 A | 若有寻呼，合法侧也会收到 Paging | 无变化 |
-| AMF 日志 | RAN config / TAI 更新 / Paging | 拒绝 |
+| 终端 C | `RANConfigurationUpdateAcknowledge` | Failure（抄 cause） |
+| N2 | 上行 proc **35**，下行 ACK | Failure / 无下行 |
 
 ```
 日期:
-C：ACK 还是 Failure:
-有无 PAGING（有则抄 5G-S-TMSI）:
-N2：35 下行；有无 24:
-结论（声称被接受 / 挡住 / 接受但无寻呼可测）:
+C：ACK 还是 Failure（cause）:
+N2：35 下行:
+结论（假 TAC=2 接受 / 挡住）:
+```
+
+### 6b：同 TAC 寻呼截获（TAC=1）
+
+三步都要齐，缺一步就没有 24：
+
+1. 4660 已被记在受害 UE 所在的 TAC=1（本条 ACK）。
+2. UE 进 **空闲**：终端 B 停止传数据；能配合就让核心网/基站做 RRC Release 或等 inactivity。`uesimtun0` 还在传包 = 仍 CONNECTED。
+3. **C 已经在 listen 时**再触发被叫：测号打电话、短消息，或请华为对 IMSI `460081111111113` 做一次寻呼/下行。不要 `ping 8.8.8.8`。
+
+```bash
+sudo ./deploy/real-amf/capture-n2.sh paging-tac1
+./deploy/ngt.sh --evidence evidence/huawei-ran-config-page.jsonl \
+    ran-config-update --tac 1 --listen 120
+```
+
+听的这 120 秒里再做被叫。成功 = C 打印 `[PAGING INTERCEPTED] 5G-S-TMSI=…`，且 N2 上 proc **24** 打在 **4660 这条 SCTP**。合法站 A 同时收到 24 也正常（同 TAC 会扇多站）。
+
+| 路 | 截获成立 | 只有拓扑 ACK |
+|---|---|---|
+| 终端 C | ACK 之后出现 `PAGING INTERCEPTED` | 只有 ACK，120s 内无 Paging |
+| N2 | proc **35** ACK；随后 **24** 在流氓 SCTP | 只有 35 |
+| 终端 A | 也可能有 Paging | 无 24 |
+| UE 状态 | 触发前已 IDLE | 仍 CONNECTED（最常见） |
+
+听满无 24：记「TAC=1 ACK 成立、无寻呼可测」，并写清当时 UE 是否仍 CONNECTED。
+
+```
+日期:
+6a TAC=2：ACK / Failure:
+6b TAC=1：ACK / Failure:
+UE 触发前是否 IDLE:
+有无被叫/寻呼触发:
+C 有无 PAGING（有则抄 5G-S-TMSI）:
+N2：35；有无 24、在哪条 SCTP:
+结论（假 TAI / 同 TAC ACK / 寻呼截获 / 无寻呼可测）:
 ```
 
 ---
@@ -771,12 +801,13 @@ A/B/observe:
 | # | 攻击 | N2 上行 | AMF 回攻击者 | 合法 gNB | 受害 UE | 备注 |
 |---|---|---|---|---|---|---|
 | 0 | sctp-ping / ng-setup | 21 | | — | — | 源 IP= |
-| 1 | path-switch | 25 | ACK? NH? | N3? | | |
+| 1 | path-switch | 25 | ACK? NH?（层1） | 丢上下文?（层2） | 切面? TEID 11111111（层3） | 有 NH 未切面也算控制面成立 |
 | 2 | ue-release | 42 | | 有 41? | | |
 | 3 | error-indication | 9 | | | | |
 | 4 | handover-required | 12 | | | | |
 | 5 | ho-window-inject | 12/13/11/49 | HO Request? | | | |
-| 6 | ran-config-update | 35 | ACK? Paging? | | — | |
+| 6a | ran-config `--tac 2` | 35 | ACK/Failure | — | — | 假 TAI，不等寻呼 |
+| 6b | ran-config `--tac 1` | 35 / 24 | ACK? PAGING? | 也有 24? | 须先 IDLE + 被叫 | 无 24 且仍 CONNECTED = 无寻呼可测 |
 | 7 | ul-ran-config-transfer | 48 | — | 有 47? | — | |
 | 8 | initial-ue | 15 | DL NAS? | | | GUTI= |
 | 9 | chain-ps-release | 25+42 | | | | |
