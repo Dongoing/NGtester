@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # ------------------------------------------------------------------------------
-# 读出华为这一次随机的 AMF-UE-NGAP-ID。
+# 读出华为这一次随机的 AMF-UE-NGAP-ID（AU）和合法 gNB 上的 RAN-UE-NGAP-ID（RU）。
 #
 # 唯一稳妥的办法：问正在跑的 UERANSIM **gNB**
 #   nr-cli --dump
 #   nr-cli <UERANSIM-gnb-...> --exec "ue-list"
-# 输出里的 amf-ngap-id 就是 AU。
+# 输出里的 amf-ngap-id 是 AU，ran-ngap-id 是受害 RU。
+# 华为 AMF 对 UE 关联消息会同时校验这一对；只填 AU、RU 用流氓默认 99/1 会被挡。
 #
 # 不要问 UE 的 info/status —— UE CLI 没有这个字段。
 # tshark 抓包是备选，必须在注册过程中抓。
@@ -37,19 +38,27 @@ FIELDS=(
 )
 
 print_au() {
-  # stdin: nr-cli ue-list yaml
+  # stdin: nr-cli ue-list yaml (UERANSIM keys: amf-ngap-id, ran-ngap-id)
   local yaml="$1"
   echo "$yaml"
   echo
-  local ids
-  ids="$(printf '%s\n' "$yaml" | grep -E 'amf-ngap-id|amfUeNgapId|amf_ngap_id' | head -5 || true)"
-  if [[ -z "$ids" ]]; then
+  local au ru
+  au="$(printf '%s\n' "$yaml" | grep -E 'amf-ngap-id|amfUeNgapId|amf_ngap_id' | head -5 || true)"
+  ru="$(printf '%s\n' "$yaml" | grep -E 'ran-ngap-id|ranUeNgapId|ran_ngap_id' | head -5 || true)"
+  if [[ -z "$au" ]]; then
     echo "[extract] ue-list 里没有 amf-ngap-id：UE 可能还没完成 InitialContextSetup"
     return 1
   fi
   echo "========================================"
-  echo "  把下面的 amf-ngap-id 填进 --amf-ue-id / --source-amf-ue-id"
-  echo "$ids"
+  echo "  AU 填 --amf-ue-id / --source-amf-ue-id"
+  echo "$au"
+  if [[ -n "$ru" ]]; then
+    echo "  RU 填挡住的那些命令的 --ran-ue-id（受害侧，不是流氓 99）"
+    echo "$ru"
+    echo "  不要把这个 RU 填进 path-switch / ho-window-inject / chain-ps-release（那些用 99）"
+  else
+    echo "  [extract] 没有 ran-ngap-id：看 ue-list 全文，或注册 N2 pcap 里的 RAN-UE-NGAP-ID"
+  fi
   echo "========================================"
   return 0
 }
@@ -154,7 +163,7 @@ case "${1:-}" in
   --guti)
     try_guti || true
     echo
-    echo "[extract] 同时再读一次 AU（InitialUE 链也要用）:"
+    echo "[extract] 同时再读一次 AU / RU（InitialUE 链也要用）:"
     try_nrcli || true
     ;;
   --watch)
@@ -165,7 +174,7 @@ case "${1:-}" in
       exit 0
     fi
     echo
-    echo "[extract] nr-cli 没拿到 AU。检查："
+    echo "[extract] nr-cli 没拿到 AU/RU。检查："
     echo "  1) 终端 A 的 run-gnb.sh、终端 B 的 run-ue.sh 都还在"
     echo "  2) 本脚本和 UERANSIM 是同一用户（nr-cli 走本机 IPC）"
     echo "  3) 备选: sudo $0 --watch 然后再重启 run-ue.sh"

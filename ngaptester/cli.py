@@ -827,11 +827,14 @@ def main():
 
     s = sub.add_parser("ue-release")
     s.add_argument("--amf-ue-id", type=int, required=True)
-    s.add_argument("--ran-ue-id", type=int, default=1)
+    s.add_argument("--ran-ue-id", type=int, default=1,
+                   help="Huawei: victim RAN-UE-NGAP-ID from extract-ue-ids "
+                        "(not the tester local default)")
 
     s = sub.add_parser("error-indication")
     s.add_argument("--amf-ue-id", type=int, required=True)
-    s.add_argument("--ran-ue-id", type=int, default=None)
+    s.add_argument("--ran-ue-id", type=int, default=None,
+                   help="Huawei: required — victim RAN-UE-NGAP-ID from extract-ue-ids")
 
     s = sub.add_parser("ng-reset")
     s.add_argument("--targets", required=True, help="amf:ran,amf:ran,...")
@@ -923,7 +926,8 @@ def main():
 
     s = sub.add_parser("handover-required")
     s.add_argument("--amf-ue-id", type=int, required=True)
-    s.add_argument("--ran-ue-id", type=int, default=1)
+    s.add_argument("--ran-ue-id", type=int, default=1,
+                   help="Huawei: victim RAN-UE-NGAP-ID from extract-ue-ids")
     s.add_argument("--target-gnb-id", type=lambda x: int(x, 0), default=0)
     s.add_argument("--target-gnb-id-len", type=int, default=22,
                    help="TargetID gNB-ID bit length (Huawei commercial gNB is 22)")
@@ -954,11 +958,13 @@ def main():
     for name in ("pdu-notify", "handover-notify", "ul-nrppa", "ul-ran-status"):
         s = sub.add_parser(name)
         s.add_argument("--amf-ue-id", type=int, required=True)
-        s.add_argument("--ran-ue-id", type=int, default=99)
+        s.add_argument("--ran-ue-id", type=int, default=99,
+                       help="Huawei: victim RAN-UE-NGAP-ID from extract-ue-ids")
 
     s = sub.add_parser("cell-trace")
     s.add_argument("--amf-ue-id", type=int, required=True)
-    s.add_argument("--ran-ue-id", type=int, default=99)
+    s.add_argument("--ran-ue-id", type=int, default=99,
+                   help="Huawei: victim RAN-UE-NGAP-ID from extract-ue-ids")
     s.add_argument("--attacker-ip", default="auto")
 
     s = sub.add_parser("ran-config-update")

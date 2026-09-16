@@ -108,7 +108,7 @@ bootstrap 会：检查内核 SCTP → 装依赖(build 工具/libsctp/python venv
 
 ```bash
 ./deploy/selftest-encode.sh
-./deploy/extract-ue-ids.sh
+./deploy/extract-ue-ids.sh          # 抄 AU 和受害 RU；挡住的 UE 关联消息两条都要带
 sudo ./deploy/real-amf/capture-n2.sh <攻击名>
 ./deploy/ngt.sh sctp-ping
 ./deploy/ngt.sh ng-setup
