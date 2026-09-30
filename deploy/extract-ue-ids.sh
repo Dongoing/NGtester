@@ -12,8 +12,8 @@
 # tshark 抓包是备选，必须在注册过程中抓。
 #
 # 用法（ngap_tester/ 下，gNB+UE 已注册）:
-#   ./deploy/extract-ue-ids.sh
-#   ./deploy/extract-ue-ids.sh --guti           # 再尽量拆 5G-S-TMSI（InitialUE 用）
+#   ./deploy/extract-ue-ids.sh                  # AU/RU，并默认再打印 GUTI / 5G-S-TMSI
+#   ./deploy/extract-ue-ids.sh --guti           # 与无参数相同（保留旧写法）
 #   ./deploy/extract-ue-ids.sh --watch          # 先开抓再重启 UE
 #   ./deploy/extract-ue-ids.sh -r /tmp/n2.pcap
 # ------------------------------------------------------------------------------
@@ -160,25 +160,24 @@ case "${1:-}" in
   -r)
     dump_pcap "${2:?用法: $0 -r file.pcap}"
     ;;
-  --guti)
-    try_guti || true
+  --guti|"")
+    au_ok=0
+    try_nrcli || au_ok=1
     echo
-    echo "[extract] 同时再读一次 AU / RU（InitialUE 链也要用）:"
-    try_nrcli || true
+    echo "[extract] GUTI / 5G-S-TMSI（默认打印；Retrieve UE Information / InitialUE 用）:"
+    guti_ok=0
+    try_guti || guti_ok=1
+    if [[ $au_ok -ne 0 && $guti_ok -ne 0 ]]; then
+      echo
+      echo "[extract] AU/RU 和 GUTI 都没拿到。检查："
+      echo "  1) 终端 A 的 run-gnb.sh、终端 B 的 run-ue.sh 都还在"
+      echo "  2) 本脚本和 UERANSIM 是同一用户（nr-cli 走本机 IPC）"
+      echo "  3) 备选: sudo $0 --watch 然后再重启 run-ue.sh"
+      exit 1
+    fi
     ;;
   --watch)
     live_tshark
-    ;;
-  "" )
-    if try_nrcli; then
-      exit 0
-    fi
-    echo
-    echo "[extract] nr-cli 没拿到 AU/RU。检查："
-    echo "  1) 终端 A 的 run-gnb.sh、终端 B 的 run-ue.sh 都还在"
-    echo "  2) 本脚本和 UERANSIM 是同一用户（nr-cli 走本机 IPC）"
-    echo "  3) 备选: sudo $0 --watch 然后再重启 run-ue.sh"
-    exit 1
     ;;
   * )
     if [[ "$1" =~ ^[0-9]+$ ]]; then

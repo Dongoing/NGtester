@@ -833,6 +833,24 @@ def pdu_session_resource_notify(amf_ue_id: int, ran_ue_id: int, *,
     })
 
 
+def retrieve_ue_information(amf_set_id: int, amf_pointer: int, tmsi):
+    """RETRIEVE UE INFORMATION (Class 2, procedureCode 55).
+
+    The only mandatory IE is FiveG-S-TMSI (id 26). The elementary procedure
+    defines an initiating message and no successful outcome, so a spec-following
+    AMF sends nothing back. The live probe still waits, because an Error
+    Indication or any other NGAP on this association is the observation.
+    """
+    ies = [
+        {"id": 26, "criticality": "reject",
+         "value": ("FiveG-S-TMSI", five_g_s_tmsi(amf_set_id, amf_pointer, tmsi))},
+    ]
+    return ("initiatingMessage", {
+        "procedureCode": 55, "criticality": "reject",
+        "value": ("RetrieveUEInformation", {"protocolIEs": ies}),
+    })
+
+
 def handover_notify(amf_ue_id: int, ran_ue_id: int, cfg: dict, *, nci: int | None = None):
     """HANDOVER NOTIFY (Class 2, procedureCode 11). OAI p09.
 

@@ -104,6 +104,10 @@ CASES = [
      "build": lambda cfg: B.uplink_ue_associated_nrppa_transport(
          _VICTIM_AMF_ID, _VICTIM_RAN_ID,
          routing_id=b"\x00\x01", nrppa_pdu=bytes(range(16)))},
+    {"id": "rui-a", "msg": "RetrieveUEInformation",
+     "desc": "Retrieve UE Information keyed by FiveG-S-TMSI (proc 55, Class 2). "
+             "No success outcome is defined; the live check is whether any NGAP comes back.",
+     "build": lambda cfg: B.retrieve_ue_information(1, 0, "00000001")},
     {"id": "p17-a", "msg": "CellTrafficTrace",
      "desc": "Redirect a remote UE's trace metadata/records to an attacker TCE sink.",
      "build": lambda cfg: B.cell_traffic_trace(

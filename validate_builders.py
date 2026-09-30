@@ -33,6 +33,7 @@ cases = {
         CFG, target_gnb_id=1, source_gnb_id=4660),
     "PDUSessionResourceNotify": B.pdu_session_resource_notify(1, 99),
     "HandoverNotify": B.handover_notify(1, 99, CFG),
+    "RetrieveUEInformation": B.retrieve_ue_information(1, 0, "00000001"),
     "UplinkUEAssociatedNRPPaTransport": B.uplink_ue_associated_nrppa_transport(1, 99),
     "CellTrafficTrace": B.cell_traffic_trace(1, 99, CFG, tce_ip="172.30.200.9"),
     "UplinkRANStatusTransfer": B.uplink_ran_status_transfer(1, 99),

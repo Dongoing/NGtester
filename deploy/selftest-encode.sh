@@ -19,7 +19,7 @@ echo "==== CLI 子命令能解析 ===="
 for cmd in sctp-ping ng-setup path-switch ue-release error-indication ng-reset \
            handover-required ho-window-inject ran-config-update \
            ul-ran-config-transfer initial-ue chain-ps-release \
-           chain-initue-release handover-notify pdu-notify cell-trace \
+           chain-initue-release handover-notify retrieve-ue-info pdu-notify cell-trace \
            ul-ran-status ul-nrppa gtpu-sink; do
   "$PY" -m ngaptester.cli --config config/huawei.json "$cmd" --help >/dev/null
   echo "  OK  $cmd --help"
