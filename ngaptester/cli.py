@@ -72,12 +72,19 @@ def parse_sessions(spec) -> list[int]:
     return [int(x) for x in str(spec).split(",")]
 
 
+_CAUSE_SHORT = {
+    "ngran": ("radioNetwork", "release-due-to-ngran-generated-reason"),
+}
+
+
 def parse_cause(spec: str):
-    """'radioNetwork:release-due-to-ngran-generated-reason' -> (group, name)."""
+    """Short name or 'group:value'. 'ngran' is release-due-to-ngran-generated-reason."""
+    hit = _CAUSE_SHORT.get(spec.strip().lower())
+    if hit:
+        return hit
     group, sep, name = spec.partition(":")
     if not sep or not group or not name:
-        raise argparse.ArgumentTypeError(
-            "use group:name, e.g. radioNetwork:release-due-to-ngran-generated-reason")
+        raise argparse.ArgumentTypeError("use ngran, or group:name")
     return (group, name)
 
 
@@ -1026,7 +1033,7 @@ def main():
                    help="send PDUSessionResourceReleasedListNot (session release) "
                         "instead of the placeholder notify list")
     s.add_argument("--cause", type=parse_cause, default=None,
-                   help="with --release: group:name "
+                   help="with --release: ngran, or group:name "
                         "(default radioNetwork:radio-connection-with-ue-lost)")
 
     s = sub.add_parser("pdu-modify-ind")
