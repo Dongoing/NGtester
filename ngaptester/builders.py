@@ -150,6 +150,58 @@ def ue_context_release_complete(amf_ue_id: int, ran_ue_id: int,
     })
 
 
+def ue_context_suspend_request(amf_ue_id: int, ran_ue_id: int, *,
+                               pdu_sessions=(1,)):
+    """UE CONTEXT SUSPEND REQUEST (Class 1, procedureCode 59).
+
+    NG-RAN tells the AMF this UE entered RRC Inactive. Mandatory IEs are the
+    two UE NGAP IDs. The suspend list names which PDU sessions to suspend;
+    each item's transfer carries SuspendIndicator true.
+    """
+    from .ngap import encode_transfer
+    xfer = encode_transfer("UEContextSuspendRequestTransfer",
+                           {"suspendIndicator": "true"})
+    items = [{"pDUSessionID": int(pid), "uEContextSuspendRequestTransfer": xfer}
+             for pid in pdu_sessions]
+    ies = [
+        {"id": 10, "criticality": "reject", "value": ("AMF-UE-NGAP-ID", amf_ue_id)},
+        {"id": 85, "criticality": "reject", "value": ("RAN-UE-NGAP-ID", ran_ue_id)},
+        {"id": 231, "criticality": "reject",
+         "value": ("PDUSessionResourceSuspendListSUSReq", items)},
+    ]
+    return ("initiatingMessage", {
+        "procedureCode": 59, "criticality": "reject",
+        "value": ("UEContextSuspendRequest", {"protocolIEs": ies}),
+    })
+
+
+def ue_context_resume_request(amf_ue_id: int, ran_ue_id: int, *,
+                              pdu_sessions=(1,),
+                              rrc_cause: str = "mo-Signalling"):
+    """UE CONTEXT RESUME REQUEST (Class 1, procedureCode 58).
+
+    NG-RAN tells the AMF the UE resumed here. Mandatory IEs are the two UE
+    NGAP IDs and RRCEstablishmentCause. The resume list names the PDU
+    sessions to hand to this gNB; the transfer itself has no mandatory field.
+    """
+    from .ngap import encode_transfer
+    xfer = encode_transfer("UEContextResumeRequestTransfer", {})
+    items = [{"pDUSessionID": int(pid), "uEContextResumeRequestTransfer": xfer}
+             for pid in pdu_sessions]
+    ies = [
+        {"id": 10, "criticality": "reject", "value": ("AMF-UE-NGAP-ID", amf_ue_id)},
+        {"id": 85, "criticality": "reject", "value": ("RAN-UE-NGAP-ID", ran_ue_id)},
+        {"id": 237, "criticality": "ignore",
+         "value": ("RRCEstablishmentCause", rrc_cause)},
+        {"id": 232, "criticality": "reject",
+         "value": ("PDUSessionResourceResumeListRESReq", items)},
+    ]
+    return ("initiatingMessage", {
+        "procedureCode": 58, "criticality": "reject",
+        "value": ("UEContextResumeRequest", {"protocolIEs": ies}),
+    })
+
+
 def error_indication(amf_ue_id: int | None = None, ran_ue_id: int | None = None,
                      cause=("radioNetwork", "unknown-local-UE-NGAP-ID")):
     """ERROR INDICATION (Class 2), UE-associated variant.

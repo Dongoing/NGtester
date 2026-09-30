@@ -42,6 +42,8 @@ cases = {
     "UplinkUEAssociatedNRPPaTransport": B.uplink_ue_associated_nrppa_transport(1, 99),
     "CellTrafficTrace": B.cell_traffic_trace(1, 99, CFG, tce_ip="172.30.200.9"),
     "UplinkRANStatusTransfer": B.uplink_ran_status_transfer(1, 99),
+    "UEContextSuspendRequest": B.ue_context_suspend_request(1, 99),
+    "UEContextResumeRequest": B.ue_context_resume_request(1, 99),
 }
 
 ok = True

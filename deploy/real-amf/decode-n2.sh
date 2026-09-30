@@ -27,6 +27,7 @@ procedureCode 速查（本仓库会发的）:
   28 PDUSessionResourceRelease (Command/Response)
    2 CellTrafficTrace 49 UL RAN Status Transfer
   50 UL UE-assoc NRPPa
+  58 UEContextResume   59 UEContextSuspend
 谁发给谁: ip.src=13.254.241.142 且不是合法 gNB 单独关联的，多半是流氓。
 合法 gNB 和流氓共用源 IP，靠 SCTP 端口 / 时间对齐终端 C。
 EOF
