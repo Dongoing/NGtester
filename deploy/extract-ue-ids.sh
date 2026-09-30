@@ -8,7 +8,8 @@
 # 输出里的 amf-ngap-id 是 AU，ran-ngap-id 是受害 RU。
 # 华为 AMF 对 UE 关联消息会同时校验这一对；只填 AU、RU 用流氓默认 99/1 会被挡。
 #
-# 不要问 UE 的 info/status —— UE CLI 没有这个字段。
+# GUTI 不在 UE 的 info 里（那里只有 SUPI/IMEI）。在 UE 的 status → stored-guti。
+# 5G-S-TMSI = AMF Set ID + AMF Pointer + 5G-TMSI。AMF Region ID 不填进 retrieve-ue-info。
 # tshark 抓包是备选，必须在注册过程中抓。
 #
 # 用法（ngap_tester/ 下，gNB+UE 已注册）:
@@ -37,101 +38,120 @@ FIELDS=(
   -e ngap.rAN_UE_NGAP_ID
 )
 
+yaml_field() {
+  # $1 yaml, $2 extended regex of the key
+  printf '%s\n' "$1" | grep -E "$2" | head -1 | sed -E 's/^[^:]*:[[:space:]]*//' | tr -d "\"' " || true
+}
+
+as_hex() {
+  local v="${1#0x}"
+  v="${v#0X}"
+  if [[ "$v" =~ ^[0-9]+$ ]]; then
+    printf '0x%x' "$((10#$v))"
+  elif [[ "$v" =~ ^[0-9a-fA-F]+$ ]]; then
+    printf '0x%x' "$((16#$v))"
+  else
+    printf '%s' "$1"
+  fi
+}
+
+as_tmsi() {
+  local v="${1#0x}"
+  v="${v#0X}"
+  if [[ "$v" =~ ^[0-9]+$ ]]; then
+    printf '%08x' "$((10#$v))"
+  else
+    printf '%08s' "$v" | tr ' ' '0'
+  fi
+}
+
+cli_dump() {
+  local nodes
+  nodes="$("$CLI" --dump 2>/dev/null || true)"
+  if [[ -z "$nodes" ]]; then
+    nodes="$(sudo "$CLI" --dump 2>/dev/null || true)"
+  fi
+  printf '%s\n' "$nodes"
+}
+
+cli_exec() {
+  # $1 node  $2 command. UE 由 sudo 拉起时，普通用户的 nr-cli 看不到它。
+  local out
+  out="$("$CLI" "$1" --exec "$2" 2>/dev/null || true)"
+  if [[ -z "$out" ]]; then
+    out="$(sudo "$CLI" "$1" --exec "$2" 2>/dev/null || true)"
+  fi
+  printf '%s\n' "$out"
+}
+
 print_au() {
-  # stdin: nr-cli ue-list yaml (UERANSIM keys: amf-ngap-id, ran-ngap-id)
-  local yaml="$1"
-  echo "$yaml"
-  echo
-  local au ru
-  au="$(printf '%s\n' "$yaml" | grep -E 'amf-ngap-id|amfUeNgapId|amf_ngap_id' | head -5 || true)"
-  ru="$(printf '%s\n' "$yaml" | grep -E 'ran-ngap-id|ranUeNgapId|ran_ngap_id' | head -5 || true)"
-  if [[ -z "$au" ]]; then
+  local yaml="$1" au ru au_v ru_v
+  au_v="$(yaml_field "$yaml" 'amf-ngap-id|amfUeNgapId|amf_ngap_id')"
+  ru_v="$(yaml_field "$yaml" 'ran-ngap-id|ranUeNgapId|ran_ngap_id')"
+  if [[ -z "$au_v" ]]; then
     echo "[extract] ue-list 里没有 amf-ngap-id：UE 可能还没完成 InitialContextSetup"
     return 1
   fi
-  echo "========================================"
-  echo "  AU 填 --amf-ue-id / --source-amf-ue-id"
-  echo "$au"
-  if [[ -n "$ru" ]]; then
-    echo "  RU 填挡住的那些命令的 --ran-ue-id（受害侧，不是流氓 99）"
-    echo "$ru"
-    echo "  不要把这个 RU 填进 path-switch / ho-window-inject / chain-ps-release（那些用 99）"
+  echo "AU  --amf-ue-id / --source-amf-ue-id    $au_v"
+  if [[ -n "$ru_v" ]]; then
+    echo "RU  --ran-ue-id（受害侧，不是 99）       $ru_v"
   else
-    echo "  [extract] 没有 ran-ngap-id：看 ue-list 全文，或注册 N2 pcap 里的 RAN-UE-NGAP-ID"
+    echo "[extract] 没有 ran-ngap-id"
+    return 1
   fi
-  echo "========================================"
   return 0
 }
 
 try_nrcli() {
   [[ -x "$CLI" ]] || { echo "[extract] 没有 $CLI"; return 1; }
 
-  echo "[extract] nr-cli --dump"
-  local nodes
-  nodes="$("$CLI" --dump 2>/dev/null || true)"
-  echo "$nodes"
-  [[ -n "$nodes" ]] || { echo "[extract] --dump 为空：nr-gnb / nr-ue 没在跑，或不是同一用户"; return 1; }
+  local nodes gnb out
+  nodes="$(cli_dump)"
+  [[ -n "$nodes" ]] || { echo "[extract] nr-cli 看不到节点：nr-gnb / nr-ue 没在跑"; return 1; }
 
-  local gnb
   gnb="$(printf '%s\n' "$nodes" | grep -E '^UERANSIM-gnb-' | head -1 || true)"
   if [[ -z "$gnb" ]]; then
-    # 兜底：对每个非 imsi- 节点试 ue-list
     gnb="$(printf '%s\n' "$nodes" | grep -v '^imsi-' | head -1 || true)"
   fi
   if [[ -z "$gnb" ]]; then
-    echo "[extract] dump 里没有 gNB 节点。合法 gNB 必须在跑。"
+    echo "[extract] 没有 gNB 节点。合法 gNB 必须在跑。"
     return 1
   fi
 
-  echo "[extract] nr-cli $gnb --exec ue-list"
-  local out
-  if ! out="$("$CLI" "$gnb" --exec "ue-list" 2>/dev/null)"; then
-    echo "[extract] ue-list 失败"
-    return 1
-  fi
+  out="$(cli_exec "$gnb" ue-list)"
+  [[ -n "$out" ]] || { echo "[extract] ue-list 为空"; return 1; }
   print_au "$out"
 }
 
 try_guti() {
   [[ -x "$CLI" ]] || { echo "[extract] 没有 $CLI"; return 1; }
-  local nodes ue info
-  # run-ue.sh 是 sudo 起的：普通用户的 nr-cli --dump 常常看不到 imsi- 节点
-  echo "[extract] nr-cli --dump（当前用户）"
-  nodes="$("$CLI" --dump 2>/dev/null || true)"
-  echo "$nodes"
+  local nodes ue status set_id ptr tmsi
+  nodes="$(cli_dump)"
   ue="$(printf '%s\n' "$nodes" | grep -E "^imsi-${UE1_IMSI}$|^imsi-" | head -1 || true)"
   if [[ -z "$ue" ]]; then
-    echo "[extract] 当前用户看不到 UE。run-ue.sh 用了 sudo，改问 root 的 nr-cli"
-    echo "[extract] sudo nr-cli --dump"
-    nodes="$(sudo "$CLI" --dump 2>/dev/null || true)"
-    echo "$nodes"
-    ue="$(printf '%s\n' "$nodes" | grep -E "^imsi-${UE1_IMSI}$|^imsi-" | head -1 || true)"
-  fi
-  if [[ -z "$ue" ]]; then
-    echo "[extract] dump 里没有 UE 节点。看终端 B 是否还在，或抓注册 N2。"
+    echo "[extract] 没有 UE 节点。终端 B 的 run-ue.sh 要还在。"
     return 1
   fi
-  echo
-  echo "[extract] nr-cli $ue --exec info"
-  info="$("$CLI" "$ue" --exec "info" 2>/dev/null || true)"
-  if [[ -z "$info" ]]; then
-    echo "[extract] 普通用户 info 空，再 sudo 一次"
-    info="$(sudo "$CLI" "$ue" --exec "info" 2>/dev/null || true)"
-  fi
-  echo "$info"
-  echo
-  echo "========================================"
-  echo "  在上面找 GUTI / 5G-S-TMSI / TMSI / AMF-Set / AMF-Pointer"
-  echo "  填 InitialUE / chain-initue-release："
-  echo "    --amf-set-id 0x<10bit>  --amf-pointer 0x<6bit>  --tmsi <8hex>"
-  echo "  终端 B（nr-ue）日志里搜 GUTI 往往更全。"
-  echo "  或注册时抓 N2：sudo ./deploy/real-amf/capture-n2.sh guti"
-  echo "  再 ./deploy/real-amf/decode-n2.sh"
-  echo "========================================"
-  if [[ -z "$info" ]]; then
-    echo "[extract] info 空。看终端 B 日志，或抓注册过程的 N2。"
+
+  # info 只有 SUPI/IMEI。GUTI 在 status 的 stored-guti。
+  status="$(cli_exec "$ue" status)"
+  [[ -n "$status" ]] || { echo "[extract] UE status 为空"; return 1; }
+
+  set_id="$(yaml_field "$status" 'amf-set-id|amfSetId|amf_set_id')"
+  ptr="$(yaml_field "$status" 'amf-pointer|amfPointer|amf_pointer')"
+  tmsi="$(yaml_field "$status" '(^|[[:space:]])tmsi[[:space:]]*:')"
+  if [[ -z "$set_id" || -z "$ptr" || -z "$tmsi" || "$tmsi" == "null" || "$set_id" == "null" ]]; then
+    echo "[extract] status 里没有 stored-guti。注册还没分到 GUTI，或 UE 已掉线。"
     return 1
   fi
+
+  set_id="$(as_hex "$set_id")"
+  ptr="$(as_hex "$ptr")"
+  tmsi="$(as_tmsi "$tmsi")"
+  echo "AMF Set ID   --amf-set-id     $set_id"
+  echo "AMF Pointer  --amf-pointer    $ptr"
+  echo "5G-TMSI      --tmsi           $tmsi"
+  echo "retrieve-ue-info --amf-set-id $set_id --amf-pointer $ptr --tmsi $tmsi"
   return 0
 }
 
@@ -164,7 +184,6 @@ case "${1:-}" in
     au_ok=0
     try_nrcli || au_ok=1
     echo
-    echo "[extract] GUTI / 5G-S-TMSI（默认打印；Retrieve UE Information / InitialUE 用）:"
     guti_ok=0
     try_guti || guti_ok=1
     if [[ $au_ok -ne 0 && $guti_ok -ne 0 ]]; then
