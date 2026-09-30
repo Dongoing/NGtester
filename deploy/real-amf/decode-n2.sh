@@ -23,6 +23,8 @@ procedureCode 速查（本仓库会发的）:
   11 HandoverNotify   15 InitialUEMessage   35 RANConfigurationUpdate
   48 UL RAN Config Transfer   47 DL RAN Config Transfer
   24 Paging           30 PDUSessionResourceNotify
+  27 PDUSessionResourceModifyIndication
+  28 PDUSessionResourceRelease (Command/Response)
    2 CellTrafficTrace 49 UL RAN Status Transfer
   50 UL UE-assoc NRPPa
 谁发给谁: ip.src=13.254.241.142 且不是合法 gNB 单独关联的，多半是流氓。

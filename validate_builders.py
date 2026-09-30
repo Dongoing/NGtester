@@ -9,6 +9,7 @@ from binascii import hexlify
 from pycrate_asn1dir import NGAP
 
 from ngaptester import ngap, builders as B, decode
+from ngaptester.cases_p05_p09 import pdu_session_resource_modify_indication
 
 CFG = {"mcc": "001", "mnc": "01", "tac": 1, "sst": 1, "sd": "010203",
        "gnb_id": 4660, "gnb_id_len": 32, "nci": 0x11, "ran_node_name": "ngap-tester"}
@@ -32,6 +33,10 @@ cases = {
     "UplinkRANConfigurationTransfer": B.uplink_ran_configuration_transfer(
         CFG, target_gnb_id=1, source_gnb_id=4660),
     "PDUSessionResourceNotify": B.pdu_session_resource_notify(1, 99),
+    "PDUSessionResourceNotifyReleased": B.pdu_session_resource_notify(
+        1, 99, released=True),
+    "PDUSessionResourceModifyIndication": pdu_session_resource_modify_indication(
+        1, 99, CFG, attacker_ip="13.254.241.142", teid=0x11111111),
     "HandoverNotify": B.handover_notify(1, 99, CFG),
     "RetrieveUEInformation": B.retrieve_ue_information(1, 0, "00000001"),
     "UplinkUEAssociatedNRPPaTransport": B.uplink_ue_associated_nrppa_transport(1, 99),
